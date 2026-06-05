@@ -1336,6 +1336,26 @@ select {
   text-overflow: ellipsis;
 }
 
+/* ── Image selection cards (Select Images tab) ────────────────────────────── */
+.img-select-card { width: 150px; }
+.img-select-card .cell-canvas { width: 100%; height: auto; display: block; object-fit: contain; }
+
+/* Green checkmark badge — shown when card is selected */
+.select-check-badge {
+  position: absolute; top: 4px; right: 4px;
+  width: 20px; height: 20px;
+  background: var(--moss); color: #f0ecd8;
+  border: 1px solid var(--moss-hi);
+  display: none; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.cell-card--selected .select-check-badge { display: flex; }
+
+/* Unviewed images are slightly dimmed until scrolled into view */
+.img-select-card:not(.img-viewed) { opacity: 0.72; }
+.img-select-card.img-viewed       { opacity: 1; }
+.img-select-card:focus            { outline: 2px solid var(--gold); outline-offset: 2px; }
+
 /* ── Drag-select box ──────────────────────────────────────────────────────── */
 .drag-select-rect {
   position: absolute;

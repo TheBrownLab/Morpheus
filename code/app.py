@@ -804,6 +804,61 @@ async def api_use_all_images(body: dict):
     return {"copied": copied, "destination": str(dest_root)}
 
 
+# ── Browser-based image selection (replaces napari select_images.py) ──────────
+
+@app.get("/api/select/images")
+def api_select_images(analysis_id: str = Query(...), destination: str = Query("curated")):
+    """List all images in data/input/ annotated with selection/viewed state."""
+    sel_file = CODE_DIR / f"selections_{analysis_id}_{destination}.json"
+    sel_data = _read_json(sel_file, {"selected": [], "viewed": []})
+    selected_abs = set(sel_data.get("selected", []))
+    viewed_abs   = set(sel_data.get("viewed",   []))
+
+    images = []
+    if INPUT_DIR.exists():
+        for f in sorted(INPUT_DIR.rglob("*")):
+            if f.suffix.lower() not in IMAGE_EXTENSIONS:
+                continue
+            try:
+                rel_to_input = f.relative_to(INPUT_DIR)
+                strain = rel_to_input.parts[0] if len(rel_to_input.parts) > 1 else f.parent.name
+            except ValueError:
+                strain = f.parent.name
+            abs_str = str(f)
+            rel_str = str(f.relative_to(REPO_DIR))
+            images.append({
+                "path":      rel_str,
+                "abs_path":  abs_str,
+                "strain":    strain,
+                "filename":  f.name,
+                "selected":  abs_str in selected_abs,
+                "viewed":    abs_str in viewed_abs,
+            })
+
+    selected_count = sum(1 for i in images if i["selected"])
+    viewed_count   = sum(1 for i in images if i["viewed"])
+    return {
+        "images":          images,
+        "selected_count":  selected_count,
+        "viewed_count":    viewed_count,
+        "total":           len(images),
+        "selections_file": str(sel_file),
+    }
+
+
+@app.post("/api/select/save")
+async def api_select_save(body: dict):
+    """Persist browser image selections to the selections JSON file."""
+    analysis_id = body.get("analysis_id", "default")
+    destination = body.get("destination", "curated")
+    selected    = body.get("selected", [])
+    viewed      = body.get("viewed",   [])
+    sel_file = CODE_DIR / f"selections_{analysis_id}_{destination}.json"
+    data = {"selected": selected, "viewed": viewed, "count": len(selected)}
+    sel_file.write_text(json.dumps(data, indent=2))
+    return {"ok": True, "path": str(sel_file), "count": len(selected)}
+
+
 @app.get("/api/set-status")
 def api_set_status(analysis_id: str = Query(default="default")):
     """Return image counts in data/input/ and data/curated/<analysis_id>/ per strain."""
@@ -1504,7 +1559,7 @@ def api_curation_cells(analysis_id: str = Query(default="default"), strain: str 
 
 
 @app.get("/api/curation/file")
-def api_curation_file(path: str = Query(...)):
+def api_curation_file(path: str = Query(...), thumb: bool = Query(False)):
     p = Path(path)
     if not p.exists() or not p.is_file():
         raise HTTPException(status_code=404, detail="File not found")
@@ -1520,7 +1575,6 @@ def api_curation_file(path: str = Query(...)):
     if suffix in (".tif", ".tiff"):
         # Browsers can't render TIFF — convert to normalised 8-bit PNG in memory
         import io, tifffile, numpy as np
-        from skimage import exposure
         img = tifffile.imread(str(p))
         if img.ndim == 3:
             img = img[0] if img.shape[0] <= 4 else img[..., 0]
@@ -1528,8 +1582,20 @@ def api_curation_file(path: str = Query(...)):
         img8 = ((np.clip(img.astype(np.float32), lo, hi) - lo) /
                 (hi - lo + 1e-6) * 255).astype(np.uint8)
         from PIL import Image as PILImage
-        buf = io.BytesIO()
-        PILImage.fromarray(img8).save(buf, format="PNG")
+        import io as _io
+        pil_img = PILImage.fromarray(img8)
+        if thumb:
+            pil_img.thumbnail((280, 280), PILImage.LANCZOS)
+        buf = _io.BytesIO()
+        pil_img.save(buf, format="PNG")
+        return Response(content=buf.getvalue(), media_type="image/png")
+    if thumb:
+        from PIL import Image as PILImage
+        import io as _io
+        pil_img = PILImage.open(str(p)).convert("L")
+        pil_img.thumbnail((280, 280), PILImage.LANCZOS)
+        buf = _io.BytesIO()
+        pil_img.save(buf, format="PNG")
         return Response(content=buf.getvalue(), media_type="image/png")
     media_type = "image/png" if suffix == ".png" else "image/jpeg"
     return Response(content=p.read_bytes(), media_type=media_type)
