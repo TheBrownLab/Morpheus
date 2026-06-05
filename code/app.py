@@ -963,15 +963,47 @@ def api_training_strains():
 
 
 def _detect_qt_api() -> str:
-    """Return the name of the first available Qt binding in this Python env."""
-    for api, module in [("pyqt5", "PyQt5"), ("pyqt6", "PyQt6"),
-                        ("pyside6", "PySide6"), ("pyside2", "PySide2")]:
+    """Return the name of the first usable Qt binding in this Python env.
+
+    Prefers pyqt6 > pyside6 > pyqt5 > pyside2 because environment.yml
+    installs pyqt6. PyQt5 is often present as a transitive dependency but
+    may be missing its Qt shared libraries / platform plugins — checking
+    import alone is not sufficient, so pyqt6 is tried first.
+    """
+    for api, module in [("pyqt6", "PyQt6"), ("pyside6", "PySide6"),
+                        ("pyqt5", "PyQt5"), ("pyside2", "PySide2")]:
         try:
             importlib.import_module(module)
             return api
         except ImportError:
             continue
-    return "pyqt5"  # let qtpy produce its own error
+    return "pyqt6"  # let qtpy produce its own error
+
+
+def _qt_plugin_path(api: str) -> str | None:
+    """Return the platforms plugin directory for the given Qt binding, or None.
+
+    In conda environments Qt's platform plugins (e.g. cocoa on macOS) live
+    inside the Python package directory, not in a system location. Qt won't
+    find them unless QT_QPA_PLATFORM_PLUGIN_PATH points there explicitly.
+    Clearing the var (or trusting the inherited value) breaks the GUI when
+    the user's shell points to a different Qt installation.
+    """
+    try:
+        subdirs = {
+            "pyqt6":   ("PyQt6",   "Qt6",  "plugins", "platforms"),
+            "pyside6": ("PySide6", "Qt",   "plugins", "platforms"),
+            "pyqt5":   ("PyQt5",   "Qt5",  "plugins", "platforms"),
+            "pyside2": ("PySide2", "Qt",   "plugins", "platforms"),
+        }
+        if api not in subdirs:
+            return None
+        pkg, *rest = subdirs[api]
+        mod = importlib.import_module(pkg)
+        path = Path(mod.__file__).parent.joinpath(*rest)
+        return str(path) if path.exists() else None
+    except Exception:
+        return None
 
 
 @app.post("/api/launch/cellpose-gui")
@@ -981,9 +1013,18 @@ def api_launch_cellpose_gui(body: dict = {}):
 
     env = os.environ.copy()
     env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-    # Auto-detect available Qt binding so inherited shell vars don't cause failures
-    env["QT_API"] = _detect_qt_api()
-    env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)   # don't override Qt's own plugin discovery
+    # Auto-detect available Qt binding so inherited shell vars don't cause failures.
+    api = _detect_qt_api()
+    env["QT_API"] = api
+    # Set platform plugin path explicitly — conda installs Qt plugins inside the
+    # Python package dir, not in a system location Qt would find on its own.
+    # Clearing this var (or inheriting a shell value pointing elsewhere) causes
+    # "Could not find Qt platform plugin cocoa" crashes on macOS.
+    plugin_path = _qt_plugin_path(api)
+    if plugin_path:
+        env["QT_QPA_PLATFORM_PLUGIN_PATH"] = plugin_path
+    else:
+        env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
 
     # Launch via gui.run(image=...) in a subprocess so the image loads on startup
     image_arg = f", image={repr(str(image_path))}" if image_path else ""
