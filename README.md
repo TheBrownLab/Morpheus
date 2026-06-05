@@ -1,6 +1,6 @@
 # Morpheus — Morphometrics Pipeline
 
-Web-based pipeline for Cellpose segmentation and morphometric measurements of protists from brightfield OME-TIFF or JPEG/PNG images. Try it out with various microscopy datasets.
+Web-based pipeline for image curation, segmentation/masking using [Cellpose](https://www.cellpose.org/), and morphometric analysis of protists from brightfield OME-TIFF or JPEG/PNG images. Try it out with various microscopy datasets.
 
 A **Nolandella** test dataset and pre-trained model are included so you can explore every tab of the pipeline immediately after installation.
 
