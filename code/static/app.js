@@ -759,7 +759,7 @@ async function deleteAnalysis(id) {
 
 // ── Environment check ─────────────────────────────────────────────────────────
 
-const PKG_REQUIRED = ["cellpose","napari","tifffile","pandas","numpy","scikit-image"];
+const PKG_REQUIRED = ["cellpose","tifffile","pandas","numpy","scikit-image"];
 const PKG_OPTIONAL = ["matplotlib","fastapi","uvicorn"];
 
 async function loadEnvStatus() {

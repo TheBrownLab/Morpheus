@@ -4,7 +4,6 @@ channels:
   - defaults
 dependencies:
   - python=3.11
-  - napari>=0.5
   - pyqt6
   - tifffile>=2024.1
   - pandas>=2.0

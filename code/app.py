@@ -86,7 +86,7 @@ def get_pipeline_python() -> str:
         if p.exists():
             return str(p)
     home = Path.home()
-    for env_name in ["morpheus", "morpheus-env", "napari-env"]:
+    for env_name in ["morpheus", "morpheus-env"]:
         for conda_base in [
             home / "opt/miniconda3", home / "opt/mambaforge", home / "opt/miniforge3",
             home / "miniconda3",     home / "mambaforge",      home / "miniforge3",
@@ -153,7 +153,7 @@ def measurements_path(analysis_id: str) -> Path:
 
 # ── Environment check & install endpoints ────────────────────────────────────
 
-REQUIRED_PACKAGES = ["cellpose", "napari", "tifffile", "pandas", "numpy", "scikit-image"]
+REQUIRED_PACKAGES = ["cellpose", "tifffile", "pandas", "numpy", "scikit-image"]
 
 @app.get("/api/env/status")
 def api_env_status():
@@ -163,7 +163,7 @@ def api_env_status():
         "import json, sys\n"
         "pkgs = {}\n"
         "for name, imp in [\n"
-        "  ('cellpose','cellpose'),('napari','napari'),('tifffile','tifffile'),\n"
+        "  ('cellpose','cellpose'),('tifffile','tifffile'),\n"
         "  ('pandas','pandas'),('numpy','numpy'),('scikit-image','skimage'),\n"
         "  ('matplotlib','matplotlib'),('fastapi','fastapi'),('uvicorn','uvicorn'),\n"
         "]:\n"
@@ -217,13 +217,13 @@ async def api_env_install_start(body: dict):
         else:
             # Fallback: install packages directly
             cmd = [conda, "create", "-n", env_name, "-c", "conda-forge",
-                   "python=3.11", "napari", "pyqt", "tifffile", "pandas",
+                   "python=3.11", "pyqt6", "tifffile", "pandas",
                    "numpy", "scikit-image", "matplotlib", "openpyxl", "-y"]
     else:
         # pip fallback — installs into the current environment
         cmd = [sys.executable, "-m", "pip", "install",
-               "cellpose>=4.0", "napari", "tifffile", "pandas", "numpy",
-               "scikit-image", "matplotlib", "openpyxl", "fastapi", "uvicorn[standard]"]
+               "cellpose[gui]>=4.0", "tifffile", "pandas", "numpy",
+               "scikit-image", "matplotlib", "openpyxl", "fastapi", "uvicorn[standard]", "pyqtgraph"]
 
     job_id = str(uuid.uuid4())[:8]
     _jobs[job_id] = {
@@ -683,57 +683,6 @@ def api_thumbnail(path: str = Query(...)):
 
 # ── Napari launcher ───────────────────────────────────────────────────────────
 
-_napari_procs: dict[str, subprocess.Popen] = {}
-
-
-@app.post("/api/launch/selector")
-async def api_launch_selector(body: dict):
-    """Launch select_images.py in napari browsing data/input/."""
-    analysis_id = body.get("analysis_id", "default")
-    destination = body.get("destination", "curated")   # 'training' or 'curated'
-
-    if not INPUT_DIR.exists() or not any(INPUT_DIR.iterdir()):
-        raise HTTPException(status_code=400, detail="data/input/ is empty — import strain images first")
-
-    script = SCRIPTS_DIR / "select_images.py"
-    if not script.exists():
-        raise HTTPException(status_code=500, detail="select_images.py not found")
-
-    sel_file = CODE_DIR / f"selections_{analysis_id}_{destination}.json"
-
-    env = os.environ.copy()
-    env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-    env["QT_QPA_PLATFORM_PLUGIN_PATH"] = (
-        str(Path(sys.executable).parent.parent
-            / "lib/python3.11/site-packages/PyQt6/Qt6/plugins/platforms")
-    )
-    env["SELECTIONS_FILE"] = str(sel_file)
-
-    proc = subprocess.Popen(
-        [sys.executable, str(script), str(INPUT_DIR),
-         "--target", str(body.get("target", 30))],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    pid = str(proc.pid)
-    _napari_procs[pid] = proc
-    return {
-        "pid": pid,
-        "analysis_id": analysis_id,
-        "destination": destination,
-        "selections_file": str(sel_file),
-    }
-
-
-@app.get("/api/launch/status/{pid}")
-def api_launch_status(pid: str):
-    proc = _napari_procs.get(pid)
-    if proc is None:
-        return {"running": False, "pid": pid}
-    running = proc.poll() is None
-    return {"running": running, "pid": pid, "returncode": proc.returncode}
-
 
 @app.post("/api/copy-to-set")
 async def api_copy_to_set(body: dict):
@@ -751,7 +700,7 @@ async def api_copy_to_set(body: dict):
         return {
             "copied": 0,
             "errors": [],
-            "message": "No selections found — open napari and select images first",
+            "message": "No selections found — use Browse & Select to choose images first",
         }
 
     if destination == "training":
