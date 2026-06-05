@@ -506,7 +506,6 @@ main {
   font-size: 9px;
   color: var(--text-dim);
   letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 .area-hint {
@@ -1112,7 +1111,6 @@ select {
   font-size: 9px;
   font-weight: 600;
   color: var(--text-dim);
-  text-transform: uppercase;
   letter-spacing: 0.1em;
   border-bottom: 2px solid var(--stone-border);
 }
@@ -1572,7 +1570,6 @@ select {
   font-family: var(--font-body);
   font-size: 0.82em;
   color: var(--text-mid);
-  text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
@@ -1689,14 +1686,14 @@ select {
   --stone-hi:     #a89878;
   --stone-mortar: #ddd4c0;
 
-  /* Wood — keep dark so the sidebar stays high-contrast in both modes.
-     Slightly warmer/lighter than dark-mode values so it's still wood, not pitch black. */
-  --wood-void:    #2a1c08;
-  --wood-deep:    #362210;
-  --wood-dark:    #3e2a14;
-  --wood-mid:     #503618;
-  --wood-border:  #6e4c26;
-  --wood-hi:      #8e6836;
+  /* Wood — sidebar. Lighter warm walnut in light mode — still dark enough for
+     white text, but not near-black. Scoped overrides below keep sidebar text light. */
+  --wood-void:    #38240c;
+  --wood-deep:    #4a3016;
+  --wood-dark:    #5c3c1c;
+  --wood-mid:     #6e4e28;
+  --wood-border:  #8a6438;
+  --wood-hi:      #a8804e;
   --wood-grain:   rgba(255,210,120,0.07);
 
   /* Text — dark warm brown, readable on parchment */
@@ -1726,9 +1723,34 @@ select {
   /* Danger */
   --danger:        #7a1818;
   --danger-hi:     #9a2828;
-  --danger-text:   #b02020;
+  --danger-text:   #f0c8c0;
   --danger-border: #520808;
 
   /* Log terminal text — dark green on parchment */
   --log-color: #2a5810;
+}
+
+/* ── Light mode: sidebar text stays light on the dark-wood sidebar ─────────── */
+[data-theme="light"] #sidebar {
+  --text-bright:  #e8d8a8;
+  --text-mid:     #c8aa78;
+  --text-dim:     #a08858;
+  --gold:         #c09030;
+  --gold-hi:      #d8a840;
+}
+
+/* ── Light mode: primary/danger buttons need light text on their dark bgs ───── */
+[data-theme="light"] .btn-primary      { color: #f0ecd8; }
+[data-theme="light"] .btn-primary:hover { color: #f8f4e4; }
+
+/* ── Light mode: chips (moss bg) need light text ────────────────────────────── */
+[data-theme="light"] .chip             { color: #e8f0d8; }
+
+/* ── Light mode: curate panels on dark-wood bg need light text ──────────────── */
+[data-theme="light"] .morph-panel,
+[data-theme="light"] .image-cell-sidebar,
+[data-theme="light"] .curate-stats-panel {
+  --text-bright:  #e8d8a8;
+  --text-mid:     #c8aa78;
+  --text-dim:     #a08858;
 }
