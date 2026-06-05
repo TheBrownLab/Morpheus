@@ -541,6 +541,7 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--gold-edge);
   box-shadow: inset 1px 1px 0 rgba(0,0,0,0.4), 0 0 0 1px var(--gold-dim);
 }
+input::placeholder, textarea::placeholder { color: var(--text-dim); opacity: 1; }
 
 select {
   cursor: pointer;
@@ -1743,8 +1744,11 @@ select {
 [data-theme="light"] .btn-primary      { color: #f0ecd8; }
 [data-theme="light"] .btn-primary:hover { color: #f8f4e4; }
 
-/* ── Light mode: chips (moss bg) need light text ────────────────────────────── */
-[data-theme="light"] .chip             { color: #e8f0d8; }
+/* ── Light mode: chips ───────────────────────────────────────────────────────── */
+/* Moss-bg chips: light cream text */
+[data-theme="light"] .chip:not(.chip--dim) { color: #e8f0d8; }
+/* Stone-bg dim chips: dark text for readable contrast on parchment */
+[data-theme="light"] .chip--dim { color: var(--text-bright); }
 
 /* ── Light mode: curate panels on dark-wood bg need light text ──────────────── */
 [data-theme="light"] .morph-panel,
@@ -1753,4 +1757,15 @@ select {
   --text-bright:  #e8d8a8;
   --text-mid:     #c8aa78;
   --text-dim:     #a08858;
+}
+/* Inputs/selects inside those panels have a light stone bg — restore dark text */
+[data-theme="light"] .morph-panel input,
+[data-theme="light"] .morph-panel select,
+[data-theme="light"] .morph-panel textarea,
+[data-theme="light"] .image-cell-sidebar input,
+[data-theme="light"] .image-cell-sidebar select,
+[data-theme="light"] .curate-stats-panel input,
+[data-theme="light"] .curate-stats-panel select {
+  --text-bright: #1e1408;
+  color: #1e1408;
 }
