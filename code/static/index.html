@@ -278,39 +278,89 @@
     </section>
 
     <!-- ── 2. Select Images ── -->
-    <section id="tab-select" class="tab-panel tab-panel--curate hidden">
-      <div class="tab-header" style="padding:12px 16px 0;flex-shrink:0">
+    <section id="tab-select" class="tab-panel hidden">
+      <div class="tab-header">
         <div><h2>Select Images</h2></div>
         <div class="tab-controls">
           <label class="ctrl-label">Analysis</label>
-          <select id="analysis-select-select" class="analysis-select"></select>
-          <label class="ctrl-label">Destination</label>
-          <select id="select-destination" class="morph-filter-select">
-            <option value="curated">Curated Set</option>
-            <option value="training">Training Set</option>
+          <select id="analysis-select-select" class="analysis-select">
+            <option value="">— select analysis —</option>
           </select>
         </div>
       </div>
+      <p class="tab-desc">Browse and select images from <code>data/input/</code>, then copy them into the curated set for the selected analysis.</p>
 
-      <div class="curate-toolbar" id="select-toolbar">
-        <span id="select-stats" class="text-dim" style="font-size:12px;flex-shrink:0">Select an analysis to load images</span>
-        <div class="toolbar-spacer"></div>
-        <button id="select-copy-btn" class="btn-primary btn-sm" disabled>Copy to Set</button>
-        <button id="select-use-all-btn" class="btn-secondary btn-sm">Use All</button>
-        <button id="select-deselect-btn" class="btn-secondary btn-sm">Deselect All</button>
+      <div class="two-col">
+        <div class="stone-card">
+          <h3>Input Images</h3>
+          <p class="card-desc">Imported from source directories into <code>data/input/</code>.</p>
+          <div id="input-set-status" class="status-line">—</div>
+        </div>
+
+        <div class="stone-card">
+          <h3>Analysis Set <span class="chip">Curated</span></h3>
+          <p class="card-desc">Images selected for measurement. Copies into <code>data/curated/&lt;analysis&gt;/&lt;strain&gt;/</code>.</p>
+          <div id="curated-set-status" class="status-line">—</div>
+          <div class="action-row">
+            <button id="browse-curated-btn" class="btn-primary btn-sm">Browse &amp; Select</button>
+            <button id="copy-to-curated-btn" class="btn-secondary btn-sm">Copy Selections</button>
+            <button id="use-all-images-btn" class="btn-secondary btn-sm">Use All</button>
+          </div>
+          <div id="curated-sel-info" class="inline-status hidden"></div>
+        </div>
       </div>
 
-      <div id="select-copy-status" class="inline-status hidden" style="flex-shrink:0;padding:4px 14px"></div>
-
-      <div class="cell-grid-wrap" id="select-grid-wrap">
-        <div class="cell-grid" id="select-grid">
-          <div class="empty-state" style="padding:24px">Select an analysis above to browse images</div>
+      <div class="stone-card">
+        <h3>Training Set <span class="chip chip--dim">Optional — for model training</span></h3>
+        <p class="card-desc">Select images for drawing Cellpose masks and training a custom model. Copies into <code>data/training/&lt;strain&gt;/</code>.</p>
+        <div class="action-row">
+          <button id="browse-training-btn" class="btn-primary btn-sm">Browse &amp; Select</button>
+          <button id="copy-to-training-btn" class="btn-secondary btn-sm">Copy Selections</button>
         </div>
-        <div class="format-note" style="padding:6px 14px 10px;border-top:1px solid var(--stone-border)">
-          <strong>Keys:</strong> <kbd>←</kbd><kbd>→</kbd> navigate &nbsp;·&nbsp; <kbd>Space</kbd> toggle &nbsp;·&nbsp; <kbd>J</kbd> jump to first unseen
-          &nbsp;&nbsp;<strong>Formats:</strong> .tif .tiff .jpg .jpeg .png (OME-TIFF pixel size read automatically)
+        <div id="training-sel-info" class="inline-status hidden"></div>
+      </div>
+
+      <!-- ── Inline image browser — hidden until Browse & Select is clicked ── -->
+      <div id="select-browser" class="stone-card select-browser-card hidden">
+        <div class="select-browser-header">
+          <span id="select-browser-title" class="select-browser-title">Image Browser</span>
+          <div class="toolbar-spacer"></div>
+          <span id="select-stats" class="text-dim" style="font-size:11px;white-space:nowrap"></span>
+          <button id="select-all-btn" class="btn-secondary btn-sm">Select All</button>
+          <button id="select-deselect-all-btn" class="btn-secondary btn-sm">Deselect All</button>
+          <button id="select-browser-close" class="btn-secondary btn-sm">✕ Close</button>
+        </div>
+        <div class="select-browser-strains" id="select-strain-tabs"></div>
+        <div class="select-browser-grid" id="select-grid-wrap">
+          <div class="cell-grid" id="select-grid">
+            <div class="empty-state" style="padding:32px">Loading…</div>
+          </div>
+        </div>
+        <div class="select-browser-footer">
+          <kbd>←</kbd> <kbd>→</kbd> navigate &nbsp;·&nbsp; <kbd>Space</kbd> toggle selection &nbsp;·&nbsp; <kbd>J</kbd> jump to first unseen
         </div>
       </div>
+
+      <div class="stone-card stone-card--dim">
+        <h3>How it works</h3>
+        <ol class="how-list">
+          <li>Select an analysis above</li>
+          <li>Click <strong>Browse &amp; Select</strong> — an image browser opens below showing all images from <code>data/input/</code></li>
+          <li>Click thumbnails to mark/unmark, or use <kbd>←</kbd> <kbd>→</kbd> to navigate and <kbd>Space</kbd> to toggle. <kbd>J</kbd> jumps to first unseen image</li>
+          <li>Filter by strain using the tabs at the top of the browser. Use <strong>Select All</strong> to mark the entire visible strain</li>
+          <li>Click <strong>Copy Selections</strong> to copy the marked images</li>
+          <li><strong>Analysis Set</strong> → <code>data/curated/&lt;analysis&gt;/&lt;strain&gt;/</code> — used for measurement</li>
+          <li><strong>Training Set</strong> → <code>data/training/&lt;strain&gt;/</code> — draw masks here, then train a model</li>
+        </ol>
+      </div>
+
+      <div class="format-note">
+        <strong>Supported formats:</strong>
+        .tif &nbsp;.tiff &nbsp;.TIF &nbsp;.TIFF &nbsp;.jpg &nbsp;.jpeg &nbsp;.JPG &nbsp;.JPEG &nbsp;.png &nbsp;.PNG
+        &nbsp;·&nbsp; OME-TIFF pixel size read from metadata automatically
+      </div>
+
+      <div><button id="refresh-set-status-btn" class="btn-secondary btn-sm">Refresh Counts</button></div>
     </section>
 
     <!-- ── 3. Train Model ── -->

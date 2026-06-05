@@ -742,6 +742,7 @@ async function deleteStrain(name) {
     state.config = await apiJSON("/api/config");
     await loadStrains();
     populateAnalysisSelects();
+    await refreshSetStatus();
   } catch (e) { showError(e.message); }
 }
 
@@ -987,62 +988,130 @@ function initSetupTab() {
 
 // ── Select Images tab — browser-based image selection (replaces napari) ───────
 
+// ── Select Images tab — browser-based image selection (replaces napari) ───────
+
 const selectState = {
-  analysisId:    null,
-  destination:   "curated",
-  images:        [],   // [{path, abs_path, strain, filename, selected, viewed}]
-  focused:       -1,
-  _saveTimer:    null,
-  _observer:     null,
+  analysisId:   null,
+  destination:  "curated",
+  images:       [],    // [{path, abs_path, strain, filename, selected, viewed}]
+  strainFilter: "all",
+  _saveTimer:   null,
+  _observer:    null,
 };
 
 async function onSelectTabLoad() {
   populateAnalysisSelects();
+  await refreshSetStatus();
+}
+
+// Updates the per-strain count rows in the Input/Curated/Training cards
+async function refreshSetStatus() {
+  const analysisId = getSelectedAnalysis("select") || "default";
+  try {
+    const data = await apiJSON(`/api/set-status?analysis_id=${encodedPath(analysisId)}`);
+    renderSetStatus("input-set-status",   data.input   || {});
+    renderSetStatus("curated-set-status", data.curated || {});
+  } catch (_) { /* ignore */ }
+}
+
+function renderSetStatus(elId, counts) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const entries = Object.entries(counts);
+  if (!entries.length) { el.innerHTML = '<span class="set-status-empty">Empty</span>'; return; }
+  el.innerHTML = entries.map(([s, n]) =>
+    `<div class="set-status-row"><span class="set-status-name">${s}</span><span class="set-status-count">${n}</span></div>`
+  ).join("");
+}
+
+// Open inline browser, load images for given destination
+async function openSelectBrowser(destination) {
+  const analysisId = getSelectedAnalysis("select");
+  if (!analysisId) {
+    const btn = document.getElementById(`browse-${destination}-btn`);
+    if (btn) { const t = btn.textContent; btn.textContent = "Select an analysis first"; setTimeout(() => { btn.textContent = t; }, 1800); }
+    return;
+  }
+  selectState.destination  = destination;
+  selectState.analysisId   = analysisId;
+  selectState.strainFilter = "all";
+
+  const browser = document.getElementById("select-browser");
+  const title   = document.getElementById("select-browser-title");
+  if (title) title.textContent = destination === "curated" ? "Analysis Set — Curated" : "Training Set";
+  if (browser) { browser.classList.remove("hidden"); browser.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+
   await loadSelectImages();
 }
 
+function closeSelectBrowser() {
+  const browser = document.getElementById("select-browser");
+  if (browser) browser.classList.add("hidden");
+  if (selectState._observer) { selectState._observer.disconnect(); selectState._observer = null; }
+  refreshSetStatus();
+}
+
 async function loadSelectImages() {
-  const analysisId = getSelectedAnalysis("select");
-  selectState.destination = document.getElementById("select-destination")?.value || "curated";
-  if (!analysisId) {
-    selectState.images = [];
-    renderSelectGrid();
-    updateSelectStats();
-    return;
-  }
-  selectState.analysisId = analysisId;
+  const { analysisId, destination } = selectState;
   const grid = document.getElementById("select-grid");
-  if (grid) grid.innerHTML = '<div class="empty-state" style="padding:24px">Loading…</div>';
+  if (grid) grid.innerHTML = '<div class="empty-state" style="padding:32px">Loading images…</div>';
   try {
     const data = await apiJSON(
-      `/api/select/images?analysis_id=${encodedPath(analysisId)}&destination=${selectState.destination}`
+      `/api/select/images?analysis_id=${encodedPath(analysisId)}&destination=${destination}`
     );
     selectState.images = data.images || [];
+    renderStrainTabs();
     renderSelectGrid();
     updateSelectStats();
   } catch (e) {
-    if (grid) grid.innerHTML = `<div class="empty-state" style="padding:24px">Error: ${e.message}</div>`;
+    if (grid) grid.innerHTML = `<div class="empty-state" style="padding:32px">Error: ${e.message}</div>`;
   }
+}
+
+// Strain filter chips above the grid
+function renderStrainTabs() {
+  const wrap = document.getElementById("select-strain-tabs");
+  if (!wrap) return;
+  const strains = [...new Set(selectState.images.map(i => i.strain))].sort();
+  const mkBtn = (label, strain, count) => {
+    const active = selectState.strainFilter === strain ? " strain-tab-btn--active" : "";
+    return `<button class="strain-tab-btn${active}" data-strain="${strain}">${label}<span class="tab-count"> ${count}</span></button>`;
+  };
+  wrap.innerHTML = mkBtn("All", "all", selectState.images.length)
+    + strains.map(s => mkBtn(s, s, selectState.images.filter(i => i.strain === s).length)).join("");
+  wrap.querySelectorAll(".strain-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      selectState.strainFilter = btn.dataset.strain;
+      renderStrainTabs();
+      renderSelectGrid();
+    });
+  });
+}
+
+function visibleSelectImages() {
+  return selectState.strainFilter === "all"
+    ? selectState.images
+    : selectState.images.filter(i => i.strain === selectState.strainFilter);
 }
 
 function renderSelectGrid() {
   const grid = document.getElementById("select-grid");
   if (!grid) return;
-
-  // Disconnect previous observer
   if (selectState._observer) { selectState._observer.disconnect(); selectState._observer = null; }
 
-  if (!selectState.images.length) {
-    grid.innerHTML = '<div class="empty-state" style="padding:24px">No images found in data/input/ — import images in Setup first</div>';
+  const visible = visibleSelectImages();
+  if (!visible.length) {
+    grid.innerHTML = '<div class="empty-state" style="padding:32px">No images found in data/input/ — import strain images in Setup first</div>';
     return;
   }
 
-  grid.innerHTML = selectState.images.map((img, idx) => {
-    const selCls  = img.selected ? "cell-card--selected" : "";
-    const viewCls = img.viewed   ? "img-viewed" : "";
-    return `<div class="cell-card img-select-card ${selCls} ${viewCls}" data-idx="${idx}" tabindex="0">
+  grid.innerHTML = visible.map(img => {
+    const idx     = selectState.images.indexOf(img);  // global index for toggle
+    const selCls  = img.selected ? " cell-card--selected" : "";
+    const viewCls = img.viewed   ? " img-viewed"          : "";
+    return `<div class="cell-card img-select-card${selCls}${viewCls}" data-idx="${idx}" tabindex="0">
       <div class="cell-card-img-wrap">
-        <img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.path)}&thumb=1" loading="lazy" alt="">
+        <img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.abs_path)}&thumb=1" loading="lazy" alt="">
         <div class="select-check-badge">✓</div>
       </div>
       <div class="cell-card-info">
@@ -1052,13 +1121,13 @@ function renderSelectGrid() {
     </div>`;
   }).join("");
 
-  // Click to toggle
   grid.querySelectorAll(".img-select-card").forEach(card => {
-    card.addEventListener("click",  () => toggleSelectImage(+card.dataset.idx));
-    card.addEventListener("focus",  () => { selectState.focused = +card.dataset.idx; });
+    card.addEventListener("click", () => toggleSelectImage(+card.dataset.idx));
+    card.addEventListener("focus", () => {});
   });
 
-  // IntersectionObserver to mark images as viewed when scrolled into view
+  // Mark images as viewed when they scroll into the browser viewport
+  const root = document.getElementById("select-grid-wrap");
   selectState._observer = new IntersectionObserver(entries => {
     let changed = false;
     entries.forEach(entry => {
@@ -1068,7 +1137,7 @@ function renderSelectGrid() {
       if (img && !img.viewed) { img.viewed = true; entry.target.classList.add("img-viewed"); changed = true; }
     });
     if (changed) { updateSelectStats(); scheduleSelectSave(); }
-  }, { threshold: 0.4 });
+  }, { root, threshold: 0.4 });
   grid.querySelectorAll(".img-select-card").forEach(c => selectState._observer.observe(c));
 }
 
@@ -1078,23 +1147,24 @@ function toggleSelectImage(idx) {
   img.selected = !img.selected;
   img.viewed   = true;
   const card = document.querySelector(`#select-grid [data-idx="${idx}"]`);
-  if (card) {
-    card.classList.toggle("cell-card--selected", img.selected);
-    card.classList.add("img-viewed");
-  }
+  if (card) { card.classList.toggle("cell-card--selected", img.selected); card.classList.add("img-viewed"); }
   updateSelectStats();
   scheduleSelectSave();
 }
 
 function updateSelectStats() {
-  const { images } = selectState;
+  const { images, destination } = selectState;
   const sel    = images.filter(i => i.selected).length;
   const viewed = images.filter(i => i.viewed).length;
   const total  = images.length;
-  const el = document.getElementById("select-stats");
-  if (el) el.textContent = total > 0 ? `${sel} selected · ${viewed} viewed · ${total} total` : "No images in data/input/";
-  const copyBtn = document.getElementById("select-copy-btn");
-  if (copyBtn) copyBtn.disabled = sel === 0;
+  const statsEl = document.getElementById("select-stats");
+  if (statsEl) statsEl.textContent = total > 0 ? `${sel} selected · ${viewed} viewed · ${total} total` : "";
+  // Show selection count on the destination card
+  const infoEl = document.getElementById(`${destination}-sel-info`);
+  if (infoEl) {
+    if (sel > 0) { infoEl.textContent = `${sel} marked — click Copy Selections when ready`; infoEl.classList.remove("hidden"); }
+    else           infoEl.classList.add("hidden");
+  }
 }
 
 function scheduleSelectSave() {
@@ -1107,81 +1177,95 @@ async function saveSelections() {
   if (!analysisId) return;
   const selected = images.filter(i => i.selected).map(i => i.abs_path);
   const viewed   = images.filter(i => i.viewed).map(i => i.abs_path);
-  try {
-    await postJSON("/api/select/save", { analysis_id: analysisId, destination, selected, viewed });
-  } catch (_) { /* non-fatal */ }
+  try { await postJSON("/api/select/save", { analysis_id: analysisId, destination, selected, viewed }); }
+  catch (_) { /* non-fatal */ }
 }
 
-async function doCopyToSet() {
-  const { analysisId, destination } = selectState;
-  if (!analysisId) return;
-  const copyBtn  = document.getElementById("select-copy-btn");
-  const statusEl = document.getElementById("select-copy-status");
+async function doCopyToSet(destination) {
+  const analysisId = getSelectedAnalysis("select") || "default";
+  const copyBtn = document.getElementById(`copy-to-${destination}-btn`);
+  const infoEl  = document.getElementById(`${destination}-sel-info`);
   try { await confirmBtn(copyBtn, "Copy — sure?"); } catch { return; }
-  await saveSelections();
+  if (selectState.analysisId === analysisId && selectState.destination === destination) await saveSelections();
   const origText = copyBtn.textContent;
   copyBtn.disabled = true; copyBtn.textContent = "Copying…";
   try {
     const result = await postJSON("/api/copy-to-set", { analysis_id: analysisId, destination });
-    statusEl.classList.remove("hidden");
-    statusEl.textContent = result.copied === 0
-      ? "No selections — click thumbnails to mark images, then copy."
-      : `Copied ${result.copied} images to ${destination} set.`;
+    if (infoEl) {
+      infoEl.textContent = result.copied === 0
+        ? "No selections — use Browse & Select to mark images first."
+        : `Copied ${result.copied} images to ${destination} set.`;
+      infoEl.classList.remove("hidden");
+    }
+    await refreshSetStatus();
   } catch (e) {
-    statusEl.classList.remove("hidden");
-    statusEl.textContent = `Error: ${e.message}`;
+    if (infoEl) { infoEl.textContent = `Error: ${e.message}`; infoEl.classList.remove("hidden"); }
   } finally {
     copyBtn.disabled = false; copyBtn.textContent = origText;
   }
 }
 
 function initSelectTab() {
-  document.getElementById("analysis-select-select")?.addEventListener("change", loadSelectImages);
-  document.getElementById("select-destination")?.addEventListener("change",     loadSelectImages);
-  document.getElementById("select-copy-btn")?.addEventListener("click", doCopyToSet);
-
-  document.getElementById("select-deselect-btn")?.addEventListener("click", () => {
-    selectState.images.forEach(i => { i.selected = false; });
-    document.querySelectorAll("#select-grid .img-select-card").forEach(c => c.classList.remove("cell-card--selected"));
-    updateSelectStats();
-    scheduleSelectSave();
+  document.getElementById("analysis-select-select")?.addEventListener("change", async () => {
+    await refreshSetStatus();
+    // Reload browser if it's open
+    if (!document.getElementById("select-browser")?.classList.contains("hidden"))
+      await loadSelectImages();
   });
 
-  document.getElementById("select-use-all-btn")?.addEventListener("click", async () => {
-    const btn = document.getElementById("select-use-all-btn");
-    const statusEl = document.getElementById("select-copy-status");
+  document.getElementById("browse-curated-btn")?.addEventListener("click",  () => openSelectBrowser("curated"));
+  document.getElementById("browse-training-btn")?.addEventListener("click", () => openSelectBrowser("training"));
+  document.getElementById("copy-to-curated-btn")?.addEventListener("click",  () => doCopyToSet("curated"));
+  document.getElementById("copy-to-training-btn")?.addEventListener("click", () => doCopyToSet("training"));
+  document.getElementById("select-browser-close")?.addEventListener("click", closeSelectBrowser);
+  document.getElementById("refresh-set-status-btn")?.addEventListener("click", refreshSetStatus);
+
+  document.getElementById("select-deselect-all-btn")?.addEventListener("click", () => {
+    visibleSelectImages().forEach(i => { i.selected = false; });
+    document.querySelectorAll("#select-grid .img-select-card").forEach(c => c.classList.remove("cell-card--selected"));
+    updateSelectStats(); scheduleSelectSave();
+  });
+  document.getElementById("select-all-btn")?.addEventListener("click", () => {
+    visibleSelectImages().forEach(i => { i.selected = true; i.viewed = true; });
+    document.querySelectorAll("#select-grid .img-select-card").forEach(c => {
+      c.classList.add("cell-card--selected", "img-viewed");
+    });
+    updateSelectStats(); scheduleSelectSave();
+  });
+
+  document.getElementById("use-all-images-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("use-all-images-btn");
+    const infoEl = document.getElementById("curated-sel-info");
     try { await confirmBtn(btn, "Use All — sure?"); } catch { return; }
+    const analysisId = getSelectedAnalysis("select") || "default";
     btn.disabled = true; btn.textContent = "Copying…";
     try {
-      const result = await postJSON("/api/use-all-images", { analysis_id: selectState.analysisId });
-      statusEl.classList.remove("hidden");
-      statusEl.textContent = `Copied ${result.copied} images to curated set.`;
+      const result = await postJSON("/api/use-all-images", { analysis_id: analysisId });
+      if (infoEl) { infoEl.textContent = `Copied ${result.copied} images.`; infoEl.classList.remove("hidden"); }
+      await refreshSetStatus();
     } catch (e) {
-      statusEl.classList.remove("hidden");
-      statusEl.textContent = `Error: ${e.message}`;
-    } finally {
-      btn.disabled = false; btn.textContent = "Use All";
-    }
+      if (infoEl) { infoEl.textContent = `Error: ${e.message}`; infoEl.classList.remove("hidden"); }
+    } finally { btn.disabled = false; btn.textContent = "Use All"; }
   });
 
-  // Keyboard navigation within the grid
+  // Keyboard navigation within the scrollable browser
   document.getElementById("select-grid-wrap")?.addEventListener("keydown", e => {
-    const { images } = selectState;
-    if (!images.length) return;
-    const cards = [...document.querySelectorAll("#select-grid .img-select-card")];
-    let idx = selectState.focused;
+    const visible = visibleSelectImages();
+    if (!visible.length) return;
+    const cards  = [...document.querySelectorAll("#select-grid .img-select-card")];
+    const active = document.activeElement?.closest(".img-select-card");
+    let visIdx   = active ? cards.indexOf(active) : -1;
 
-    if      (e.code === "ArrowRight") { idx = Math.min(idx + 1, images.length - 1); e.preventDefault(); }
-    else if (e.code === "ArrowLeft")  { idx = Math.max(idx - 1, 0);                 e.preventDefault(); }
-    else if (e.code === "Space" && idx >= 0) { e.preventDefault(); toggleSelectImage(idx); return; }
+    if      (e.code === "ArrowRight") { visIdx = Math.min(visIdx + 1, cards.length - 1); e.preventDefault(); }
+    else if (e.code === "ArrowLeft")  { visIdx = Math.max(visIdx - 1, 0);                e.preventDefault(); }
+    else if (e.code === "Space" && visIdx >= 0) { e.preventDefault(); toggleSelectImage(+cards[visIdx].dataset.idx); return; }
     else if (e.code === "KeyJ") {
-      const first = images.findIndex(i => !i.viewed);
-      idx = first === -1 ? 0 : first;
+      const first = visible.findIndex(i => !i.viewed);
+      visIdx = first === -1 ? 0 : first;
       e.preventDefault();
     } else { return; }
 
-    selectState.focused = idx;
-    if (cards[idx]) { cards[idx].focus(); cards[idx].scrollIntoView({ block: "nearest" }); }
+    if (cards[visIdx]) { cards[visIdx].focus(); cards[visIdx].scrollIntoView({ block: "nearest" }); }
   });
 }
 
