@@ -1,6 +1,6 @@
-# Morpheus — Amoeba Morphometrics Pipeline
+# Morpheus — Morphometrics Pipeline
 
-Web-based pipeline for Cellpose segmentation and morphometric measurements of amoeba strains from brightfield OME-TIFF or JPEG/PNG images.
+Web-based pipeline for Cellpose segmentation and morphometric measurements of protists from brightfield OME-TIFF or JPEG/PNG images. Try it out with various microscopy datasets.
 
 A **Nolandella** test dataset and pre-trained model are included so you can explore every tab of the pipeline immediately after installation.
 
@@ -22,7 +22,7 @@ git clone https://github.com/TheBrownLab/morpheus.git
 cd morpheus
 ```
 
-> **Note:** The repository uses **Git LFS** for large files (images, masks, model weights).  
+> **Note:** The repository uses **Git LFS** for large model files.  
 > Make sure Git LFS is installed before cloning: `brew install git-lfs && git lfs install`  
 > On Linux: `sudo apt install git-lfs && git lfs install`
 
