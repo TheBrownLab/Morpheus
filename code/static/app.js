@@ -1077,6 +1077,22 @@ function setSelectViewMode(mode) {
   if (mode === "single") renderSingleView();
 }
 
+function renderSelectLfsBanner(lfsCount) {
+  let banner = document.getElementById("select-lfs-banner");
+  if (lfsCount === 0) {
+    if (banner) banner.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "select-lfs-banner";
+    banner.className = "select-lfs-banner";
+    const gridView = document.getElementById("select-modal-grid-view");
+    if (gridView) gridView.insertAdjacentElement("beforebegin", banner);
+  }
+  banner.innerHTML = `<span class="lfs-dot lfs-dot--warn"></span> ${lfsCount} image${lfsCount !== 1 ? "s are" : " is"} undownloaded Git LFS pointer${lfsCount !== 1 ? "s" : ""} — run <code>git lfs pull</code> in the repo root, then reload.`;
+}
+
 async function loadSelectImages() {
   const { analysisId, destination } = selectState;
   const grid = document.getElementById("select-grid");
@@ -1090,6 +1106,7 @@ async function loadSelectImages() {
     renderStrainTabs();
     renderSelectGrid();
     updateSelectStats();
+    renderSelectLfsBanner(data.lfs_pointers || 0);
   } catch (e) {
     if (grid) grid.innerHTML = `<div class="empty-state" style="padding:32px">Error: ${e.message}</div>`;
   }
@@ -1138,9 +1155,12 @@ function renderSelectGrid() {
     const idx      = selectState.images.indexOf(img);
     const selCls   = img.selected ? " cell-card--selected" : "";
     const viewCls  = img.viewed   ? " img-viewed"          : "";
+    const thumb    = img.lfs_pointer
+      ? `<div class="select-lfs-thumb"><span class="lfs-dot lfs-dot--warn"></span><span>LFS pointer<br>not downloaded</span></div>`
+      : `<img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.abs_path)}&thumb=1" alt="">`;
     return `<div class="cell-card img-select-card${selCls}${viewCls}" data-idx="${idx}" tabindex="0">
       <div class="cell-card-img-wrap">
-        <img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.abs_path)}&thumb=1" alt="">
+        ${thumb}
         <div class="select-check-badge">✓</div>
       </div>
       <div class="cell-card-info">

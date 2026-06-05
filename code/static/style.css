@@ -1426,6 +1426,35 @@ select {
 }
 .select-modal-content.hidden { display: none; }
 
+.select-lfs-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #c0a040;
+  background: rgba(192,160,64,0.08);
+  border-bottom: 1px solid rgba(192,160,64,0.2);
+}
+.select-lfs-banner code { font-family: monospace; background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 3px; }
+
+.select-lfs-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #111;
+  color: #8a7030;
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.4;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
 /* Grid view inside modal — larger cards */
 .select-modal-grid {
   display: flex;

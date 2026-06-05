@@ -803,14 +803,17 @@ def api_select_images(analysis_id: str = Query(...), destination: str = Query("c
                 strain = rel_to_input.parts[0] if len(rel_to_input.parts) > 1 else f.parent.name
             except ValueError:
                 strain = f.parent.name
+            is_ptr = _is_lfs_pointer(f)
             images.append({
-                "abs_path": str(f),
-                "strain":   strain,
-                "filename": f.name,
-                "in_set":   f.name in in_set_names,
+                "abs_path":    str(f),
+                "strain":      strain,
+                "filename":    f.name,
+                "in_set":      f.name in in_set_names,
+                "lfs_pointer": is_ptr,
             })
 
-    return {"images": images, "total": len(images), "in_set_count": sum(1 for i in images if i["in_set"])}
+    lfs_count = sum(1 for i in images if i["lfs_pointer"])
+    return {"images": images, "total": len(images), "in_set_count": sum(1 for i in images if i["in_set"]), "lfs_pointers": lfs_count}
 
 
 @app.post("/api/select/apply")
@@ -1861,6 +1864,11 @@ async def api_test_data_load():
                 status_code=500,
                 detail=f"Could not restore test data files: {result.stderr.strip()}"
             )
+        # git checkout restores LFS pointer files; pull the actual content if git-lfs is available
+        subprocess.run(
+            ["git", "lfs", "pull", "--include", ",".join(needs_restore)],
+            cwd=str(REPO_DIR), capture_output=True, text=True
+        )
 
     cfg = get_config()
     strains = cfg.get("strains", [])
