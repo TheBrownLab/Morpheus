@@ -198,9 +198,8 @@ strong { font-weight: 500; color: var(--text-bright); }
 }
 
 .sidebar-byline {
-  position: absolute;
-  bottom: 44px;
-  left: 0; right: 0;
+  margin-top: auto;
+  padding: 0 0 48px;
   text-align: center;
   font-size: 10px;
   color: var(--text-dim);
