@@ -40,7 +40,7 @@ conda env create -f environment.yml
 
 This creates an environment named `morpheus` with Python 3.11, Cellpose 4.x, scikit-image, FastAPI, and all other dependencies.
 
-> **Note:** I find that using claude code and asking it to install for you resolve issues that come up works quite well, as coding output is immediately measurable and claude will follow error loops until your coding errors are solved. Such as problems that come up when creating environments, which depends on the users conda installations. 
+> **Note:** I finding using [claude code](https://code.claude.com/docs/en/quickstart) in the terminal here to be useful if you are having issues. Claude's code interpreter effectively troubleshoots installation and environment issues through iterative error correction, which is particularly useful for resolving conda-related setup problems.
 
 ### 3. Activate the environment
 
