@@ -327,9 +327,6 @@ Add to `app.py`. Path resolution helpers (`_resolve_path`, `_resolve_model_path`
 
 ## User context
 
-Trista is a biologist (not a software engineer by training). Prefers:
 - Terse, direct responses — no summaries of what was just done
 - Working code over long explanations
-- The pipeline is used for amoeba morphometrics research across multiple strains
-
-The active development dataset lives at `/Volumes/SkopNVME/pipeline/` (the original working copy). This repo at `/Users/tristamoeba/Projects/Morpheus/` is the clean public release version.
+- The pipeline is used for amoeba morphometrics research across multiple diverse strains
