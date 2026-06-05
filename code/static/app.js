@@ -2181,10 +2181,11 @@ async function onResultsTabLoad() {
 
 async function loadResults() {
   const analysisId = getSelectedAnalysis("results") || "default";
-  const morphFilter = document.getElementById("results-morph-filter")?.value || "";
+  const morphSel   = document.getElementById("results-morph-filter");
+  const morphFilter = morphSel?.value || "";
   const tbody = document.getElementById("results-tbody");
   if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="7">Loading…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8">Loading…</td></tr>';
 
   try {
     const [summary, rawCells] = await Promise.all([
@@ -2192,20 +2193,40 @@ async function loadResults() {
       apiJSON(`/api/results/chart-data?analysis_id=${encodedPath(analysisId)}`).catch(() => []),
     ]);
 
-    // Filter cells: exclude rejected, optionally filter by morph
+    // Populate morphotype filter with morphotypes present in the data
+    if (morphSel) {
+      const current = morphSel.value;
+      const morphtypes = [...new Set(rawCells.map(c => c.morphotype))]
+        .filter(m => m !== "rejected").sort();
+      morphSel.innerHTML = '<option value="">All (excl. rejected)</option>';
+      morphtypes.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m.charAt(0).toUpperCase() + m.slice(1);
+        morphSel.appendChild(opt);
+      });
+      if (current && morphtypes.includes(current)) morphSel.value = current;
+    }
+
+    // Filter cells: exclude rejected, optionally filter by morphotype
     const cells = rawCells.filter(c => {
       if (c.morphotype === "rejected") return false;
       if (morphFilter && c.morphotype !== morphFilter) return false;
       return true;
     });
 
-    // Summary table
+    // Summary table (now includes morphotype column)
     if (!summary.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-cell">No curated data — run Measure + Curate first.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No curated data — run Measure + Curate first.</td></tr>';
     } else {
-      tbody.innerHTML = summary.map(row => `
+      // Filter summary rows by active morphotype filter
+      const visibleRows = morphFilter
+        ? summary.filter(r => r.morphotype === morphFilter)
+        : summary;
+      tbody.innerHTML = visibleRows.map(row => `
         <tr>
           <td>${row.strain}</td>
+          <td>${row.morphotype ?? "—"}</td>
           <td class="r">${row.n_cells}</td>
           <td class="r">${fmtMeanSd(row.length_um_mean, row.length_um_sd)}</td>
           <td class="r">${fmtMeanSd(row.breadth_um_mean, row.breadth_um_sd)}</td>
@@ -2219,13 +2240,19 @@ async function loadResults() {
     if (cells.length) renderResultsCharts(cells);
 
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty-cell">Error: ${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-cell">Error: ${e.message}</td></tr>`;
   }
 }
 
 function renderResultsCharts(cells) {
-  const strains = [...new Set(cells.map(c => c.strain))].sort();
-  const colorMap = Object.fromEntries(strains.map((s, i) => [s, STRAIN_COLORS[i % STRAIN_COLORS.length]]));
+  const strains    = [...new Set(cells.map(c => c.strain))].sort();
+  const morphotypes = [...new Set(cells.map(c => c.morphotype))].sort();
+
+  // Color by morphotype; fall back to coloring by strain when only one morphotype
+  const colorKeys  = morphotypes.length > 1 ? morphotypes : strains;
+  const colorMap   = Object.fromEntries(colorKeys.map((k, i) => [k, STRAIN_COLORS[i % STRAIN_COLORS.length]]));
+  const getColor   = (c) => morphotypes.length > 1 ? colorMap[c.morphotype] : colorMap[c.strain];
+  const seriesKey  = (c) => morphotypes.length > 1 ? c.morphotype : c.strain;
 
   const METRICS = [
     { key: "length_um",      canvasId: "canvas-length",    label: "Length (µm)" },
@@ -2243,7 +2270,12 @@ function renderResultsCharts(cells) {
     animation: { duration: 400 },
     plugins: {
       legend: {
-        labels: { color: "#a8926a", font: { family: "'Share Tech Mono', monospace", size: 11 }, boxWidth: 12 }
+        labels: {
+          color: "#a8926a",
+          font: { family: "'Share Tech Mono', monospace", size: 11 },
+          boxWidth: 12,
+          filter: (item) => !item.text.endsWith(" mean"),
+        }
       },
       tooltip: {
         backgroundColor: "#1e1b17",
@@ -2260,42 +2292,49 @@ function renderResultsCharts(cells) {
     }
   };
 
-  // Strip/dot plots for each metric
-  METRICS.forEach(({ key, canvasId, label }) => {
+  // Strip/dot plots: X position = strain, color = morphotype (or strain when 1 morphotype)
+  METRICS.forEach(({ key, canvasId }) => {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     if (_charts[canvasId]) { _charts[canvasId].destroy(); delete _charts[canvasId]; }
 
-    // Build datasets: one per strain, x = strain index + jitter, y = value
-    const datasets = strains.map((strain, si) => {
-      const vals = cells.filter(c => c.strain === strain && c[key] != null).map(c => c[key]);
-      const jitterRange = 0.25;
+    const datasets = colorKeys.map(sk => {
+      const skCells = cells.filter(c => seriesKey(c) === sk && c[key] != null);
+      const jitter  = 0.25;
       return {
-        label: strain,
-        data: vals.map(v => ({ x: si + (Math.random() - 0.5) * jitterRange, y: v })),
-        backgroundColor: colorMap[strain] + "aa",
+        label: sk,
+        data: skCells.map(c => ({
+          x: strains.indexOf(c.strain) + (Math.random() - 0.5) * jitter,
+          y: c[key],
+        })),
+        backgroundColor: colorMap[sk] + "aa",
         borderColor: "transparent",
         pointRadius: 4,
         pointHoverRadius: 6,
       };
     });
 
-    // Mean line segments overlaid
-    const meanDatasets = strains.map((strain, si) => {
-      const vals = cells.filter(c => c.strain === strain && c[key] != null).map(c => c[key]);
-      if (!vals.length) return null;
-      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-      return {
-        label: `${strain} mean`,
-        data: [{ x: si - 0.3, y: mean }, { x: si + 0.3, y: mean }],
-        type: "line",
-        borderColor: colorMap[strain],
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0,
-        fill: false,
-      };
-    }).filter(Boolean);
+    // Mean lines: one per strain+seriesKey combo
+    const meanDatasets = [];
+    strains.forEach((strain, si) => {
+      colorKeys.forEach(sk => {
+        const vals = cells.filter(c =>
+          c.strain === strain && seriesKey(c) === sk && c[key] != null
+        ).map(c => c[key]);
+        if (!vals.length) return;
+        const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+        meanDatasets.push({
+          label: `${sk} mean`,
+          data: [{ x: si - 0.28, y: mean }, { x: si + 0.28, y: mean }],
+          type: "line",
+          borderColor: colorMap[sk],
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0,
+          fill: false,
+        });
+      });
+    });
 
     _charts[canvasId] = new Chart(canvas, {
       type: "scatter",
@@ -2321,15 +2360,15 @@ function renderResultsCharts(cells) {
     });
   });
 
-  // Scatter: length vs breadth
+  // Scatter: length vs breadth, colored by morphotype (or strain)
   const scatterCanvas = document.getElementById("canvas-scatter");
   if (scatterCanvas) {
     if (_charts["canvas-scatter"]) { _charts["canvas-scatter"].destroy(); delete _charts["canvas-scatter"]; }
-    const scatterDatasets = strains.map(strain => ({
-      label: strain,
-      data: cells.filter(c => c.strain === strain && c.length_um != null && c.breadth_um != null)
+    const scatterDatasets = colorKeys.map(sk => ({
+      label: sk,
+      data: cells.filter(c => seriesKey(c) === sk && c.length_um != null && c.breadth_um != null)
                  .map(c => ({ x: c.length_um, y: c.breadth_um })),
-      backgroundColor: colorMap[strain] + "aa",
+      backgroundColor: colorMap[sk] + "aa",
       pointRadius: 5,
     }));
     _charts["canvas-scatter"] = new Chart(scatterCanvas, {
@@ -2383,6 +2422,66 @@ function initResultsTab() {
   });
 }
 
+// ── Test dataset ──────────────────────────────────────────────────────────────
+
+async function loadTestDataStatus() {
+  try {
+    const status = await apiJSON("/api/test-data/status");
+    renderTestDataActions(status);
+  } catch (e) {
+    const el = document.getElementById("test-data-actions");
+    if (el) el.innerHTML = '<span class="text-dim" style="font-size:11px">—</span>';
+  }
+}
+
+function renderTestDataActions(status) {
+  const el = document.getElementById("test-data-actions");
+  if (!el) return;
+  if (status.active) {
+    el.innerHTML = `
+      <span class="chip">${status.n_cells} cells</span>
+      <button id="remove-test-data-btn" class="btn-danger btn-sm">Remove Test Data</button>
+    `;
+    const btn = document.getElementById("remove-test-data-btn");
+    btn.addEventListener("click", async () => {
+      try { await confirmBtn(btn, "Remove all — sure?", 4000); } catch { return; }
+      btn.disabled = true; btn.textContent = "Removing…";
+      const statusEl = document.getElementById("test-data-status");
+      try {
+        await apiFetch("/api/test-data", { method: "DELETE" });
+        state.config = await apiJSON("/api/config");
+        await loadStrains();
+        await loadAnalyses();
+        populateAnalysisSelects();
+        await loadTestDataStatus();
+        if (statusEl) { statusEl.classList.remove("hidden"); statusEl.textContent = "Test data removed."; }
+      } catch (e) {
+        if (statusEl) { statusEl.classList.remove("hidden"); statusEl.textContent = `Error: ${e.message}`; }
+        btn.disabled = false; btn.textContent = "Remove Test Data";
+      }
+    });
+  } else {
+    el.innerHTML = `<button id="load-test-data-btn" class="btn-primary btn-sm">Load Test Dataset</button>`;
+    document.getElementById("load-test-data-btn").addEventListener("click", async () => {
+      const btn = document.getElementById("load-test-data-btn");
+      const statusEl = document.getElementById("test-data-status");
+      btn.disabled = true; btn.textContent = "Loading…";
+      try {
+        await postJSON("/api/test-data/load", {});
+        state.config = await apiJSON("/api/config");
+        await loadStrains();
+        await loadAnalyses();
+        populateAnalysisSelects();
+        await loadTestDataStatus();
+        if (statusEl) { statusEl.classList.remove("hidden"); statusEl.textContent = "Test dataset loaded. Open Curate or Results to explore."; }
+      } catch (e) {
+        if (statusEl) { statusEl.classList.remove("hidden"); statusEl.textContent = `Error: ${e.message}`; }
+        btn.disabled = false; btn.textContent = "Load Test Dataset";
+      }
+    });
+  }
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -2403,7 +2502,8 @@ async function init() {
   await loadAnalyses();
   await loadModels();
   await loadObjectives();
-  loadEnvStatus();  // non-blocking — runs subprocess check in background
+  loadEnvStatus();        // non-blocking — runs subprocess check in background
+  loadTestDataStatus();   // non-blocking
 }
 
 document.addEventListener("DOMContentLoaded", init);

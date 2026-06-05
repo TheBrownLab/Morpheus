@@ -62,6 +62,20 @@
         </div>
       </div>
 
+      <!-- Test Dataset -->
+      <div class="stone-card stone-card--accent-green" id="test-data-card">
+        <div class="card-header">
+          <div>
+            <h3>Test Dataset <span class="chip chip--dim">Nolandella sp.</span></h3>
+            <p class="card-desc">Explore the full pipeline immediately — pre-measured amoeba images ready to browse in Curate and Results. Remove when you're ready to start with your own data.</p>
+          </div>
+          <div class="header-actions" id="test-data-actions">
+            <span class="text-dim" style="font-size:11px">Checking…</span>
+          </div>
+        </div>
+        <div id="test-data-status" class="inline-status hidden" style="margin-top:6px"></div>
+      </div>
+
       <!-- Environment -->
       <div class="stone-card" id="env-card">
         <div class="card-header">
@@ -572,10 +586,9 @@
           <select id="analysis-select-results" class="analysis-select">
             <option value="">— select analysis —</option>
           </select>
-          <label class="ctrl-label" style="margin-left:12px">Show</label>
-          <select id="results-morph-filter" class="analysis-select">
+          <label class="ctrl-label" style="margin-left:12px">Morphotype</label>
+          <select id="results-morph-filter" class="morph-filter-select">
             <option value="">All (excl. rejected)</option>
-            <option value="accepted">Accepted only</option>
           </select>
         </div>
       </div>
@@ -594,6 +607,7 @@
           <thead>
             <tr>
               <th>Strain</th>
+              <th>Morphotype</th>
               <th class="r">N cells</th>
               <th class="r">Length mean±SD (µm)</th>
               <th class="r">Breadth mean±SD (µm)</th>

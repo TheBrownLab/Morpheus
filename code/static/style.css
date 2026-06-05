@@ -538,7 +538,8 @@ select {
   padding-right: 22px;
 }
 
-.analysis-select {
+.analysis-select,
+.morph-filter-select {
   background: var(--stone-raised);
   font-size: 12px;
   padding: 4px 22px 4px 8px;

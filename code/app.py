@@ -1597,33 +1597,132 @@ async def api_curation_export_split(body: dict):
     return {"exported": counts, "out_dir": str(out_base)}
 
 
+# ── Test dataset ──────────────────────────────────────────────────────────────
+
+_TEST_STRAIN = {
+    "name": "Nolandella",
+    "source_dir": "data/input/Nolandella",
+    "color": "#4ade80",
+}
+_TEST_ANALYSIS = {
+    "id": "nolandella_test",
+    "name": "Nolandella Test",
+    "model_path": "test_model",
+    "measurements": [
+        "length_um", "breadth_um", "aspect_ratio", "area_um2",
+        "perimeter_um", "solidity", "feret_max_um", "feret_min_um", "feret_aspect_ratio",
+    ],
+    "min_area": 300,
+    "max_area": 500000,
+    "diameter": None,
+    "pixel_size_um": 0.1075,
+    "pixels_per_um": None,
+    "strain_models": {},
+}
+
+
+@app.get("/api/test-data/status")
+def api_test_data_status():
+    cfg = get_config()
+    has_strain   = any(s["name"] == "Nolandella" for s in cfg.get("strains", []))
+    has_analysis = any(a["id"] == "nolandella_test" for a in cfg.get("analyses", []))
+    mpath = measurements_path("nolandella_test")
+    has_measurements = mpath.exists()
+    has_files = (CURATED_DIR / "nolandella_test").exists() and (INPUT_DIR / "Nolandella").exists()
+    n_cells = 0
+    if has_measurements:
+        try:
+            with open(mpath) as f:
+                data = json.load(f)
+            n_cells = sum(len(img.get("cells", [])) for img in data)
+        except Exception:
+            pass
+    return {
+        "active": has_strain and has_analysis and has_measurements,
+        "has_files": has_files,
+        "n_cells": n_cells,
+    }
+
+
+@app.post("/api/test-data/load")
+async def api_test_data_load():
+    mpath = measurements_path("nolandella_test")
+    if not mpath.exists():
+        raise HTTPException(
+            status_code=400,
+            detail="Test measurements not found — the repo may be missing test data files."
+        )
+    cfg = get_config()
+    strains = cfg.get("strains", [])
+    if not any(s["name"] == "Nolandella" for s in strains):
+        strains.insert(0, dict(_TEST_STRAIN))
+    cfg["strains"] = strains
+    analyses = cfg.get("analyses", [])
+    if not any(a["id"] == "nolandella_test" for a in analyses):
+        analyses.insert(0, dict(_TEST_ANALYSIS))
+    cfg["analyses"] = analyses
+    save_config(cfg)
+    return {"ok": True}
+
+
+@app.delete("/api/test-data")
+def api_test_data_delete():
+    cfg = get_config()
+    cfg["strains"]  = [s for s in cfg.get("strains",  []) if s["name"] != "Nolandella"]
+    cfg["analyses"] = [a for a in cfg.get("analyses", []) if a["id"]   != "nolandella_test"]
+    save_config(cfg)
+
+    curation = get_curation_state()
+    curation = {k: v for k, v in curation.items() if not k.startswith("nolandella_test:")}
+    _write_json(CURATION_STATE_FILE, curation)
+
+    removed = []
+    for path in [
+        RESULTS_DIR / "nolandella_test",
+        CURATED_DIR / "nolandella_test",
+        INPUT_DIR   / "Nolandella",
+    ]:
+        if path.exists():
+            shutil.rmtree(str(path))
+            removed.append(str(path))
+
+    return {"ok": True, "removed": removed}
+
+
 # ── Results ───────────────────────────────────────────────────────────────────
 
 def _build_curated_df(analysis_id: str):
-    """Read curated_cells.csv and return a filtered DataFrame."""
+    """Return a DataFrame of non-rejected cells with a morphotype column."""
     import pandas as pd
+
+    curation = get_curation_state()
+
+    def _morph(raw) -> str:
+        if raw is True:  return "accepted"
+        if raw is False: return "rejected"
+        return str(raw)
 
     csv_path = RESULTS_DIR / analysis_id / "curated_cells.csv"
     if not csv_path.exists():
-        # Fall back to building from measurements.json
         try:
             images_data = _load_measurements(analysis_id)
         except HTTPException:
             return None
-        curation = get_curation_state()
         rows = []
         for img_data in images_data:
-            filename = img_data["filename"]
+            filename   = img_data["filename"]
             pixel_size = img_data.get("pixel_size_um", 0.1075)
             for cell in img_data.get("cells", []):
                 key = _curation_key(analysis_id, filename, cell["cell_id"])
-                if not curation.get(key, True):
+                raw = curation.get(key, True)
+                if raw is False:
                     continue
                 row = {
                     "strain":        img_data["strain"],
                     "filename":      filename,
                     "pixel_size_um": pixel_size,
                     "filepath":      img_data["filepath"],
+                    "morphotype":    _morph(raw),
                 }
                 row.update(cell)
                 rows.append(row)
@@ -1632,16 +1731,18 @@ def _build_curated_df(analysis_id: str):
     df = pd.read_csv(csv_path)
     if df.empty:
         return None
-    curation = get_curation_state()
-    keep = []
+
+    morphs, keep = [], []
     for _, row in df.iterrows():
-        key = _curation_key(analysis_id, row.get("filename", ""), row.get("cell_id", 0))
-        if curation.get(key, True):
-            keep.append(True)
-        else:
-            keep.append(False)
+        key = _curation_key(analysis_id, str(row.get("filename", "")), row.get("cell_id", 0))
+        raw = curation.get(key, True)
+        morphs.append(_morph(raw))
+        keep.append(raw is not False)
+
+    df["morphotype"] = morphs
     import numpy as _np
-    return df[_np.array(keep)] if any(keep) else None
+    filtered = df[_np.array(keep)]
+    return filtered if not filtered.empty else None
 
 
 @app.post("/api/analyses/{analysis_id}/regen-crops")
@@ -1714,14 +1815,16 @@ def api_results_summary(analysis_id: str = Query(default="default")):
     if df is None or df.empty:
         return []
 
+    _SKIP = {"strain", "filename", "filepath", "cell_id", "pixel_size_um", "morphotype",
+             "bbox", "crop_path", "feret_crop_path",
+             "centroid_x_px", "centroid_y_px", "orientation_rad",
+             "feret_max_angle_rad", "feret_min_angle_rad"}
     measure_cols = [
         c for c in df.columns
-        if c not in ("strain", "filename", "filepath", "cell_id", "pixel_size_um",
-                     "bbox", "crop_path", "feret_crop_path",
-                     "centroid_x_px", "centroid_y_px", "orientation_rad",
-                     "feret_max_angle_rad", "feret_min_angle_rad")
-        and pd.api.types.is_numeric_dtype(df[c])
+        if c not in _SKIP and pd.api.types.is_numeric_dtype(df[c])
     ]
+
+    group_cols = ["strain", "morphotype"] if "morphotype" in df.columns else ["strain"]
 
     agg_cols: dict = {"n_cells": ("cell_id", "count")}
     for col in measure_cols:
@@ -1729,7 +1832,7 @@ def api_results_summary(analysis_id: str = Query(default="default")):
             agg_cols[f"{col}_mean"] = (col, "mean")
             agg_cols[f"{col}_sd"]   = (col, "std")
 
-    summary = df.groupby("strain").agg(**agg_cols).round(3).reset_index()
+    summary = df.groupby(group_cols).agg(**agg_cols).round(3).reset_index()
     return summary.to_dict(orient="records")
 
 
