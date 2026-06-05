@@ -2353,6 +2353,22 @@ async function loadImageViewImage(imgData) {
     canvas.style.height    = "";
     redrawImageViewCanvas();
   };
+  img.onerror = async () => {
+    // Fetch the error message from the server for a helpful explanation
+    let detail = "Image failed to load.";
+    try {
+      const r = await fetch(`/api/curation/file?path=${encodeURIComponent(filepath)}`);
+      if (!r.ok) { const j = await r.json().catch(() => ({})); detail = j.detail || detail; }
+    } catch {}
+    canvas.width = 520; canvas.height = 80;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#1a1412";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = "bold 13px monospace"; ctx.fillStyle = "#ff7070";
+    ctx.fillText("⚠ " + detail, 16, 30);
+    ctx.font = "11px monospace"; ctx.fillStyle = "#888";
+    ctx.fillText("Run: git lfs pull   (in the repo root)", 16, 54);
+  };
   img.src = `/api/curation/file?path=${encodeURIComponent(filepath)}`;
 
   // Load mask overlay (coloured RGBA PNG, same pixel dimensions as source)

@@ -179,7 +179,11 @@ def api_env_status():
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
         if r.returncode == 0:
-            data = json.loads(r.stdout.strip())
+            # Use last non-empty line only — some packages print to stdout on
+            # import (deprecation notices, version banners) which would break
+            # json.loads if we tried to parse the full output.
+            lines = [l for l in r.stdout.strip().splitlines() if l.strip()]
+            data = json.loads(lines[-1])
             ok = all(data["packages"].get(p) for p in REQUIRED_PACKAGES)
             result = {"ok": ok, "python": python, **data, "conda": find_conda()}
             _env_status_cache = result
@@ -1623,6 +1627,14 @@ def api_curation_file(path: str = Query(...), thumb: bool = Query(False)):
             p.relative_to(DATA_DIR)
         except ValueError:
             raise HTTPException(status_code=403, detail="Forbidden")
+    # Detect Git LFS pointer files (not yet downloaded) — they start with this header
+    # and are ~130 bytes. Reading the actual image would fail with a confusing error.
+    header = p.read_bytes()[:40]
+    if header.startswith(b"version https://git-lfs.github.com"):
+        raise HTTPException(
+            status_code=422,
+            detail="Git LFS file not downloaded — run 'git lfs pull' in the repo to fetch large files",
+        )
     suffix = p.suffix.lower()
     if suffix in (".tif", ".tiff"):
         # Browsers can't render TIFF — convert to normalised 8-bit PNG in memory

@@ -15,16 +15,25 @@ You need **Conda** or **Mamba** installed. Mamba resolves environments much fast
 - **Miniforge** (includes mamba, recommended): https://github.com/conda-forge/miniforge
 - **Miniconda** (conda only): https://docs.conda.io/en/latest/miniconda.html
 
-### 1. Clone the repository
+### 1. Install Git LFS, then clone
+
+> **Required:** This repository stores images, masks, and the model in **Git LFS**. Without it, those files are empty pointer stubs — images will not display and the model will not load.
+
+```bash
+# macOS
+brew install git-lfs && git lfs install
+
+# Linux (Debian/Ubuntu)
+sudo apt install git-lfs && git lfs install
+```
+
+Then clone and pull the large files:
 
 ```bash
 git clone https://github.com/TheBrownLab/morpheus.git
 cd morpheus
+git lfs pull   # downloads images, masks, and model (~300 MB)
 ```
-
-> **Note:** The repository uses **Git LFS** for large model files.  
-> Make sure Git LFS is installed before cloning: `brew install git-lfs && git lfs install`  
-> On Linux: `sudo apt install git-lfs && git lfs install`
 
 ### 2. Create the conda environment
 
