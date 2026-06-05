@@ -931,10 +931,8 @@ def api_launch_cellpose_gui(body: dict = {}):
 
     env = os.environ.copy()
     env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-    env["QT_QPA_PLATFORM_PLUGIN_PATH"] = str(
-        Path(sys.executable).parent.parent
-        / "lib/python3.11/site-packages/PyQt6/Qt6/plugins/platforms"
-    )
+    # Let Qt find its own platform plugins — don't override with a hardcoded path
+    env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
 
     # Launch via gui.run(image=...) in a subprocess so the image loads on startup
     image_arg = f", image={repr(str(image_path))}" if image_path else ""
@@ -1717,12 +1715,24 @@ def api_test_data_status():
 
 @app.post("/api/test-data/load")
 async def api_test_data_load():
-    mpath = measurements_path("nolandella_test")
-    if not mpath.exists():
-        raise HTTPException(
-            status_code=400,
-            detail="Test measurements not found — the repo may be missing test data files."
+    # Restore any committed test data files that were deleted
+    test_paths = [
+        "results/nolandella_test",
+        "data/curated/nolandella_test",
+        "data/input/Nolandella",
+    ]
+    needs_restore = [p for p in test_paths if not (REPO_DIR / p).exists()]
+    if needs_restore:
+        result = subprocess.run(
+            ["git", "checkout", "HEAD", "--"] + needs_restore,
+            cwd=str(REPO_DIR), capture_output=True, text=True
         )
+        if result.returncode != 0:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not restore test data files: {result.stderr.strip()}"
+            )
+
     cfg = get_config()
     strains = cfg.get("strains", [])
     if not any(s["name"] == "Nolandella" for s in strains):
