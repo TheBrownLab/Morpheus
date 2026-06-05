@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import importlib
 import io
 import json
 import os
@@ -924,6 +925,18 @@ def api_training_strains():
     return strains
 
 
+def _detect_qt_api() -> str:
+    """Return the name of the first available Qt binding in this Python env."""
+    for api, module in [("pyqt5", "PyQt5"), ("pyqt6", "PyQt6"),
+                        ("pyside6", "PySide6"), ("pyside2", "PySide2")]:
+        try:
+            importlib.import_module(module)
+            return api
+        except ImportError:
+            continue
+    return "pyqt5"  # let qtpy produce its own error
+
+
 @app.post("/api/launch/cellpose-gui")
 def api_launch_cellpose_gui(body: dict = {}):
     """Launch Cellpose GUI, optionally opening the first image of a training strain."""
@@ -931,7 +944,8 @@ def api_launch_cellpose_gui(body: dict = {}):
 
     env = os.environ.copy()
     env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-    env["QT_API"] = "pyqt5"                        # inherited QT_API=pyqt6 breaks qtpy
+    # Auto-detect available Qt binding so inherited shell vars don't cause failures
+    env["QT_API"] = _detect_qt_api()
     env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)   # don't override Qt's own plugin discovery
 
     # Launch via gui.run(image=...) in a subprocess so the image loads on startup
