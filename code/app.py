@@ -1864,9 +1864,9 @@ async def api_test_data_load():
                 status_code=500,
                 detail=f"Could not restore test data files: {result.stderr.strip()}"
             )
-        # git checkout restores LFS pointer files; pull the actual content if git-lfs is available
+        # git checkout restores LFS pointer files; smudge them from the local cache
         subprocess.run(
-            ["git", "lfs", "pull", "--include", ",".join(needs_restore)],
+            ["git", "lfs", "checkout"],
             cwd=str(REPO_DIR), capture_output=True, text=True
         )
 
