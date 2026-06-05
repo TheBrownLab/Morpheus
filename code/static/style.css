@@ -207,11 +207,11 @@ strong { font-weight: 500; color: var(--text-bright); }
   opacity: 0.45;
 }
 .sidebar-byline a {
-  color: inherit;
+  color: var(--gold);
   text-decoration: none;
+  pointer-events: all;
 }
 .sidebar-byline a:hover {
-  opacity: 1;
   text-decoration: underline;
 }
 
