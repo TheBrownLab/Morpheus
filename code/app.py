@@ -931,8 +931,8 @@ def api_launch_cellpose_gui(body: dict = {}):
 
     env = os.environ.copy()
     env["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-    # Let Qt find its own platform plugins — don't override with a hardcoded path
-    env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
+    env["QT_API"] = "pyqt5"                        # inherited QT_API=pyqt6 breaks qtpy
+    env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)   # don't override Qt's own plugin discovery
 
     # Launch via gui.run(image=...) in a subprocess so the image loads on startup
     image_arg = f", image={repr(str(image_path))}" if image_path else ""
