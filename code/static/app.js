@@ -1118,7 +1118,7 @@ function renderSelectGrid() {
     const viewCls = img.viewed   ? " img-viewed"          : "";
     return `<div class="cell-card img-select-card${selCls}${viewCls}" data-idx="${idx}" tabindex="0">
       <div class="cell-card-img-wrap">
-        <img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.abs_path)}&thumb=1" loading="lazy" alt="">
+        <img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.abs_path)}&thumb=1" alt="">
         <div class="select-check-badge">✓</div>
       </div>
       <div class="cell-card-info">
