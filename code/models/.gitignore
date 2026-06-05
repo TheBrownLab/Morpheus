@@ -1,0 +1,5 @@
+# Ignore all user models except the included test model
+*
+!.gitignore
+!README.md
+!test_model

@@ -1,0 +1,5 @@
+# Ignore all user strain directories except the included test dataset
+*
+!.gitignore
+!Nolandella
+!Nolandella/**

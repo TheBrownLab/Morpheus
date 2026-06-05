@@ -1,0 +1,19 @@
+name: morpheus
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - napari>=0.5
+  - pyqt
+  - tifffile>=2024.1
+  - pandas>=2.0
+  - numpy>=1.24
+  - scikit-image>=0.21
+  - matplotlib>=3.7
+  - openpyxl
+  - pip
+  - pip:
+      - "cellpose>=4.0"
+      - "fastapi>=0.100"
+      - "uvicorn[standard]>=0.20"

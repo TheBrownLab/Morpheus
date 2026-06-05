@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Morpheus</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar">
+
+    <!-- Vine tendril left edge — earthy wood tones -->
+    <svg class="vine-left" viewBox="0 0 32 320" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M16 320 C18 290,10 268,14 244 C18 220,26 205,16 180 C8 158,5 132,14 106 C22 84,24 58,16 28" stroke="#5a3c18" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M14 244 C4 237,0 222,3 212" stroke="#4a3010" stroke-width="1" stroke-linecap="round"/>
+      <ellipse cx="3" cy="210" rx="4" ry="2.5" fill="#3a5820" stroke="#4a7028" stroke-width="0.8" transform="rotate(-25 3 210)"/>
+      <path d="M16 180 C28 173,32 160,30 148" stroke="#4a3010" stroke-width="1" stroke-linecap="round"/>
+      <ellipse cx="30" cy="146" rx="3.5" ry="2.2" fill="#3a5820" stroke="#4a7028" stroke-width="0.7" transform="rotate(40 30 146)"/>
+      <path d="M14 106 C2 99,0 84,4 72" stroke="#4a3010" stroke-width="1" stroke-linecap="round"/>
+      <ellipse cx="4" cy="70" rx="3" ry="2" fill="#3a5820" stroke="#4a7028" stroke-width="0.7" transform="rotate(10 4 70)"/>
+      <path d="M16 28 C26 22,30 12,28 4" stroke="#4a3010" stroke-width="0.9" stroke-linecap="round"/>
+    </svg>
+
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div><h1>MORPHEUS</h1></div>
+      </div>
+    </div>
+
+    <ul id="nav-list">
+      <li><button data-tab="setup"   class="nav-btn"><span class="nav-num">01</span><span class="nav-label">Setup</span></button></li>
+      <li><button data-tab="select"  class="nav-btn"><span class="nav-num">02</span><span class="nav-label">Select Images</span></button></li>
+      <li><button data-tab="train"   class="nav-btn"><span class="nav-num">03</span><span class="nav-label">Train Model</span></button></li>
+      <li><button data-tab="measure" class="nav-btn"><span class="nav-num">04</span><span class="nav-label">Measure</span></button></li>
+      <li><button data-tab="curate"  class="nav-btn"><span class="nav-num">05</span><span class="nav-label">Curate</span></button></li>
+      <li><button data-tab="results" class="nav-btn"><span class="nav-num">06</span><span class="nav-label">Results</span></button></li>
+    </ul>
+
+
+    <!-- Bottom vine sprig -->
+    <svg class="vine-bottom" viewBox="0 0 180 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M0 18 C28 16,48 24,76 18 C104 12,126 20,154 16 C166 14,175 19,180 17" stroke="#5a3c18" stroke-width="1.1" stroke-linecap="round"/>
+      <ellipse cx="76" cy="18" rx="3" ry="2" fill="#3a5820" stroke="#4a7028" stroke-width="0.7"/>
+      <ellipse cx="154" cy="16" rx="2.5" ry="1.8" fill="#3a5820" stroke="#4a7028" stroke-width="0.6"/>
+      <path d="M76 18 C74 11,70 7,68 3" stroke="#4a3010" stroke-width="0.8" stroke-linecap="round"/>
+    </svg>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main>
+
+    <!-- ── 1. Setup ── -->
+    <section id="tab-setup" class="tab-panel">
+      <div class="tab-header">
+        <div>
+          <h2>Setup</h2>
+          <p class="tab-subtitle">Configure strains and analysis types before running the pipeline.</p>
+        </div>
+      </div>
+
+      <!-- Environment -->
+      <div class="stone-card" id="env-card">
+        <div class="card-header">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span id="env-light" class="env-light env-light--checking"></span>
+            <div>
+              <h3>Environment</h3>
+              <p class="card-desc">Python packages required to run the pipeline.</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button id="env-check-btn" class="btn-secondary btn-sm">Check</button>
+            <button id="env-install-conda-btn" class="btn-primary btn-sm hidden">Install (conda)</button>
+            <button id="env-install-pip-btn" class="btn-secondary btn-sm hidden">Install (pip)</button>
+          </div>
+        </div>
+
+        <div id="env-status-row" class="env-status-row hidden">
+          <div id="env-pkg-list" class="env-pkg-list"></div>
+          <div class="env-python-row">
+            <span class="field-label">Python</span>
+            <code id="env-python-path" class="env-python-path"></code>
+            <button id="env-change-python-btn" class="btn-secondary btn-xs">Change…</button>
+          </div>
+        </div>
+        <div id="env-change-form" class="inline-form hidden" style="margin-top:6px">
+          <div class="field">
+            <label>Python path</label>
+            <input id="env-python-input" type="text" placeholder="/path/to/python" />
+          </div>
+          <div class="form-actions">
+            <button id="env-python-save-btn" class="btn-primary btn-xs">Save</button>
+            <button id="env-python-cancel-btn" class="btn-secondary btn-xs">Cancel</button>
+          </div>
+        </div>
+
+        <div id="env-install-section" class="hidden" style="margin-top:8px">
+          <div id="env-install-log" class="log-box log-box--sm" style="display:none"></div>
+          <p class="card-desc" id="env-conda-hint" style="display:none">
+            No conda/mamba found. <a href="https://docs.conda.io/en/latest/miniconda.html" target="_blank" class="doc-link">Install Miniconda ↗</a>
+            then relaunch the server, or use the pip option.
+          </p>
+        </div>
+      </div>
+
+      <!-- Strains -->
+      <div class="stone-card">
+        <div class="card-header">
+          <div>
+            <h3>Strains</h3>
+            <p class="card-desc">Each strain needs a name and a source directory containing its images.</p>
+          </div>
+          <div class="header-actions">
+            <button id="import-all-strains-btn" class="btn-secondary btn-sm">Import All</button>
+            <button id="show-add-strain-btn" class="btn-primary btn-sm">+ Add Strain</button>
+          </div>
+        </div>
+
+        <div id="add-strain-form" class="inline-form hidden">
+          <h4>New Strain</h4>
+          <div class="form-grid">
+            <div class="field">
+              <label>Strain name</label>
+              <input id="new-strain-name" type="text" placeholder="e.g. Kaksola" />
+            </div>
+            <div class="field">
+              <label>Source directory</label>
+              <div class="input-row">
+                <input id="new-strain-dir" type="text" placeholder="/path/to/images" />
+                <button id="pick-strain-dir-btn" class="btn-secondary btn-sm">Choose…</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="add-strain-confirm-btn" class="btn-primary btn-sm">Add Strain</button>
+            <button id="add-strain-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
+          </div>
+        </div>
+
+        <div id="strains-list" class="card-list">
+          <p class="empty-state">No strains configured yet.</p>
+        </div>
+      </div>
+
+      <!-- Analysis Types -->
+      <div class="stone-card">
+        <div class="card-header">
+          <div>
+            <h3>Analysis Types</h3>
+            <p class="card-desc">Define what to measure. Each analysis uses a specific model and measurement set.</p>
+          </div>
+          <button id="show-add-analysis-btn" class="btn-primary btn-sm">+ Add Analysis</button>
+        </div>
+
+        <div id="add-analysis-form" class="inline-form hidden">
+          <h4>New Analysis</h4>
+          <div class="form-grid">
+            <div class="field">
+              <label>Analysis name</label>
+              <input id="new-analysis-name" type="text" placeholder="e.g. Cells" />
+            </div>
+            <div class="field">
+              <label>Analysis ID</label>
+              <input id="new-analysis-id" type="text" placeholder="e.g. cells" />
+            </div>
+            <div class="field">
+              <label>Model</label>
+              <select id="new-analysis-model">
+                <option value="">— select model —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Diameter px (blank = auto)</label>
+              <input id="new-analysis-diameter" type="number" step="1" placeholder="auto" />
+            </div>
+            <div class="field">
+              <label>Min area (px²)</label>
+              <input id="new-analysis-min-area" type="number" value="300" />
+              <span class="area-hint" id="min-area-hint"></span>
+            </div>
+            <div class="field">
+              <label>Max area (px²)</label>
+              <input id="new-analysis-max-area" type="number" value="500000" />
+              <span class="area-hint" id="max-area-hint"></span>
+            </div>
+            <div class="field">
+              <label>Objective / pixel size</label>
+              <select id="new-analysis-objective-select">
+                <option value="">— pick objective or enter below —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Pixel size µm/px <span class="text-dim">(manual override)</span></label>
+              <input id="new-analysis-pixel-size" type="number" step="any" placeholder="e.g. 0.1075" />
+            </div>
+          </div>
+          <!-- hidden — kept for JS compatibility -->
+          <input id="new-analysis-pixels-per-um" type="hidden" value="" />
+
+          <div class="field">
+            <label>Measurements</label>
+            <div id="measurement-checklist" class="meas-grid">
+              <span class="text-dim">Loading…</span>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="add-analysis-confirm-btn" class="btn-primary btn-sm">Save Analysis</button>
+            <button id="add-analysis-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
+          </div>
+        </div>
+
+        <div id="analyses-list" class="card-list">
+          <p class="empty-state">No analyses configured yet.</p>
+        </div>
+      </div>
+
+      <!-- Microscope & Objectives -->
+      <div class="stone-card" id="objectives-drop-zone">
+        <div class="card-header">
+          <div>
+            <h3>Microscope Objectives</h3>
+            <p class="card-desc">Define your objectives once here — then pick from the list when configuring an analysis. Images with OME-TIFF metadata use the embedded pixel size automatically.</p>
+          </div>
+          <div class="header-actions">
+            <label class="btn-secondary btn-sm file-btn" title="Load a Fiji microscope profile (.txt or .json)">
+              Load Fiji Profile
+              <input id="fiji-profile-upload" type="file" accept=".json,.txt" style="display:none" />
+            </label>
+            <button id="show-add-objective-btn" class="btn-primary btn-sm">+ Add Objective</button>
+          </div>
+        </div>
+
+        <div id="objectives-drop-hint" class="drop-hint">Drop Fiji .txt or .json profile here</div>
+
+        <div id="add-objective-form" class="inline-form hidden">
+          <h4>New Objective</h4>
+          <div class="form-grid">
+            <div class="field">
+              <label>Objective name</label>
+              <input id="new-obj-name" type="text" placeholder="e.g. 60x oil / 1.4 NA" />
+            </div>
+            <div class="field">
+              <label>Pixel size (µm/px)</label>
+              <input id="new-obj-pixel-um" type="number" step="any" placeholder="e.g. 0.1075" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="add-objective-confirm-btn" class="btn-primary btn-sm">Add</button>
+            <button id="add-objective-cancel-btn" class="btn-secondary btn-sm">Cancel</button>
+          </div>
+        </div>
+
+        <div id="objectives-list" class="card-list">
+          <p class="empty-state">No objectives configured. Add manually or drag in a Fiji profile.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 2. Select Images ── -->
+    <section id="tab-select" class="tab-panel hidden">
+      <div class="tab-header">
+        <div><h2>Select Images</h2></div>
+        <div class="tab-controls">
+          <label class="ctrl-label">Analysis</label>
+          <select id="analysis-select-select" class="analysis-select">
+            <option value="">— select analysis —</option>
+          </select>
+        </div>
+      </div>
+      <p class="tab-desc">Use napari to browse and select images from <code>data/input/</code>, then copy them into the curated set for the selected analysis.</p>
+
+      <div class="two-col">
+        <div class="stone-card">
+          <h3>Input Images</h3>
+          <p class="card-desc">Imported from source directories into <code>data/input/</code>.</p>
+          <div id="input-set-status" class="status-line">—</div>
+        </div>
+
+        <div class="stone-card">
+          <h3>Analysis Set <span class="chip">Curated</span></h3>
+          <p class="card-desc">Images selected for measurement. Copies into <code>data/curated/&lt;analysis&gt;/&lt;strain&gt;/</code>.</p>
+          <div id="curated-set-status" class="status-line">—</div>
+          <div class="action-row">
+            <button id="launch-napari-curated-btn" class="btn-primary btn-sm">Open in Napari</button>
+            <button id="copy-to-curated-btn" class="btn-secondary btn-sm" disabled>Copy Selections</button>
+            <button id="use-all-images-btn" class="btn-secondary btn-sm">Use All</button>
+          </div>
+          <div id="napari-curated-status" class="inline-status hidden"></div>
+        </div>
+      </div>
+
+      <div class="stone-card">
+        <h3>Training Set <span class="chip chip--dim">Optional — for model training</span></h3>
+        <p class="card-desc">Select images to use for drawing Cellpose masks and training a custom model. Copies into <code>data/training/&lt;strain&gt;/</code>.</p>
+        <div class="action-row">
+          <button id="launch-napari-training-btn" class="btn-primary btn-sm">Open in Napari</button>
+          <button id="copy-to-training-btn" class="btn-secondary btn-sm" disabled>Copy Selections</button>
+        </div>
+        <div id="napari-training-status" class="inline-status hidden"></div>
+      </div>
+
+      <div class="stone-card stone-card--dim">
+        <h3>How it works</h3>
+        <ol class="how-list">
+          <li>Select an analysis above</li>
+          <li>Click <strong>Open in Napari</strong> — napari opens with all images from <code>data/input/</code></li>
+          <li>Browse with <kbd>←</kbd> <kbd>→</kbd> keys, press <kbd>Space</kbd> to mark, <kbd>S</kbd> to save</li>
+          <li>Close napari, then click <strong>Copy Selections</strong></li>
+          <li><strong>Analysis Set</strong> → <code>data/curated/&lt;analysis&gt;/&lt;strain&gt;/</code> — used for measurement</li>
+          <li><strong>Training Set</strong> → <code>data/training/&lt;strain&gt;/</code> — draw masks here, then train a model</li>
+        </ol>
+      </div>
+
+      <div class="format-note">
+        <strong>Supported formats:</strong>
+        .tif &nbsp;.tiff &nbsp;.TIF &nbsp;.TIFF &nbsp;.jpg &nbsp;.jpeg &nbsp;.JPG &nbsp;.JPEG &nbsp;.png &nbsp;.PNG
+        &nbsp;·&nbsp; OME-TIFF pixel size read from metadata automatically
+      </div>
+
+      <div><button id="refresh-set-status-btn" class="btn-secondary btn-sm">Refresh Counts</button></div>
+    </section>
+
+    <!-- ── 3. Train Model ── -->
+    <section id="tab-train" class="tab-panel hidden">
+      <div class="tab-header">
+        <div>
+          <h2>Train Model <span class="tab-optional">optional</span></h2>
+        </div>
+      </div>
+      <p class="tab-desc">Train a custom Cellpose model on your manually labelled images.</p>
+
+      <div class="stone-card stone-card--accent-green">
+        <span class="step-badge">01</span>
+        <h3>Draw cell masks in Cellpose</h3>
+        <p class="card-desc">Open Cellpose for a specific strain — it will open with the first image in that strain's training folder. Run the base model, correct masks, draw missed cells, save with <kbd>Ctrl+S</kbd>. <a href="https://cellpose.readthedocs.io/en/latest/gui.html#using-the-gui" target="_blank" rel="noopener" class="doc-link">Cellpose GUI docs ↗</a></p>
+        <div id="cellpose-strain-btns" class="cellpose-strain-list">
+          <p class="empty-state">No training images found — copy images to a training set in Select Images first.</p>
+        </div>
+        <div><button id="launch-cellpose-btn" class="btn-secondary btn-sm">Open Cellpose (no image)</button></div>
+      </div>
+
+      <div class="stone-card stone-card--accent-blue">
+        <span class="step-badge">02</span>
+        <h3>Prepare training data</h3>
+        <p class="card-desc">Collects masked image + <code>_seg.npy</code> pairs into <code>data/training_masks/</code> for Cellpose training. Select which strains to pool — mix and match to make models as general or specific as you need.</p>
+        <div>
+          <label class="field-label">Include strains <span class="text-dim" style="font-size:10px">(all selected = use all)</span></label>
+          <div id="prepare-strain-checklist" class="prepare-strain-grid">
+            <span class="text-dim" style="font-size:11px">Loading…</span>
+          </div>
+        </div>
+        <div class="action-row">
+          <button id="prepare-training-btn" class="btn-primary btn-sm">Prepare Training Data</button>
+          <button id="prepare-select-all-btn" class="btn-secondary btn-sm">Select All</button>
+          <button id="prepare-deselect-all-btn" class="btn-secondary btn-sm">Deselect All</button>
+        </div>
+        <div id="prepare-log" class="log-box hidden"></div>
+      </div>
+
+      <div class="stone-card stone-card--accent-purple">
+        <span class="step-badge">03</span>
+        <h3>Train</h3>
+        <div class="form-grid">
+          <div class="field">
+            <label>Starting model</label>
+            <select id="train-base-model">
+              <option value="cpsam">cpsam (latest)</option>
+              <option value="cyto3">cyto3</option>
+              <option value="cyto2">cyto2</option>
+              <option value="cyto">cyto</option>
+              <option value="nuclei">nuclei</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Epochs</label>
+            <input id="train-epochs" type="number" value="200" min="50" max="2000" />
+          </div>
+          <div class="field">
+            <label>Model name</label>
+            <input id="train-model-name" type="text" placeholder="MyModel_2026" />
+          </div>
+        </div>
+        <div><button id="train-start-btn" class="btn-primary btn-sm">Start Training</button></div>
+        <div id="train-progress-section" class="progress-section hidden">
+          <div class="progress-header">
+            <span id="train-status-label">Training…</span>
+            <span id="train-progress-label" class="text-dim"></span>
+          </div>
+          <div class="progress-track"><div id="train-progress-bar" class="progress-fill" style="width:0%"></div></div>
+          <textarea id="train-log" class="log-box log-box--tall" readonly placeholder="Training log…"></textarea>
+        </div>
+      </div>
+
+      <div class="stone-card stone-card--accent-amber">
+        <span class="step-badge">04</span>
+        <h3>Use your model</h3>
+        <p class="card-desc">After training, the model appears in <code>code/models/</code>. Add a new Analysis in <strong>Setup</strong> pointing to it.</p>
+        <div><button id="refresh-models-btn" class="btn-secondary btn-sm">Refresh Model List</button></div>
+        <div id="available-models-list" class="model-list"></div>
+      </div>
+    </section>
+
+    <!-- ── 4. Measure ── -->
+    <section id="tab-measure" class="tab-panel hidden">
+      <div class="tab-header">
+        <div><h2>Measure</h2></div>
+        <div class="tab-controls">
+          <label class="ctrl-label">Analysis</label>
+          <select id="analysis-select-measure" class="analysis-select">
+            <option value="">— select analysis —</option>
+          </select>
+        </div>
+      </div>
+      <p class="tab-desc">Runs Cellpose on the curated set for the selected analysis, measures each cell, and saves per-cell crop images.</p>
+
+      <div id="measure-analysis-summary" class="stone-card hidden">
+        <h3>Analysis Configuration</h3>
+        <div id="measure-analysis-detail" class="detail-rows"></div>
+      </div>
+
+      <div class="stone-card">
+        <div class="action-row">
+          <button id="measure-start-btn" class="btn-primary btn-lg" disabled>▶ Start Measurement</button>
+        </div>
+        <p id="measure-no-analysis" class="warn-text">Select an analysis above to enable measurement.</p>
+      </div>
+
+      <div id="measure-progress-section" class="stone-card hidden">
+        <div class="progress-header">
+          <span id="measure-status-label">Running…</span>
+          <span id="measure-progress-label" class="text-dim"></span>
+        </div>
+        <div class="progress-track"><div id="measure-progress-bar" class="progress-fill" style="width:0%"></div></div>
+        <textarea id="measure-log" class="log-box log-box--tall" readonly placeholder="Log output will appear here…"></textarea>
+      </div>
+    </section>
+
+    <!-- ── 5. Curate ── -->
+    <section id="tab-curate" class="tab-panel tab-panel--curate hidden">
+
+      <!-- Toolbar -->
+      <div class="curate-toolbar">
+        <div class="ctrl-group">
+          <label class="ctrl-label">Analysis</label>
+          <select id="analysis-select-curate" class="analysis-select"></select>
+        </div>
+        <div class="ctrl-group">
+          <label class="ctrl-label">Strain</label>
+          <select id="curate-strain-filter" class="strain-select">
+            <option value="">All strains</option>
+          </select>
+        </div>
+        <div class="toolbar-sep"></div>
+        <!-- View toggle -->
+        <div class="view-toggle-group">
+          <button id="view-grid-btn" class="view-toggle-btn view-toggle-btn--active" title="Grid view">⊞ Grid</button>
+          <button id="view-image-btn" class="view-toggle-btn" title="Per-image view">▣ Image</button>
+        </div>
+        <button id="regen-crops-btn" class="btn-secondary btn-sm" title="Rebuild crop images from source files (fixes old matplotlib crops)">Regen Crops</button>
+        <button id="toggle-overlay-btn" class="btn-secondary btn-sm" title="Toggle measurement overlays">Overlays ✓</button>
+        <div class="view-toggle-group">
+          <button id="overlay-ellipse-btn" class="view-toggle-btn view-toggle-btn--active" title="Show ellipse axes (length/breadth)">Ellipse</button>
+          <button id="overlay-feret-btn" class="view-toggle-btn" title="Show Feret diameters">Feret</button>
+        </div>
+        <div class="toolbar-sep"></div>
+        <span class="ctrl-label">Assign →</span>
+        <div id="curate-morph-btns" class="morph-btn-row"></div>
+        <div class="toolbar-sep"></div>
+        <button id="curate-select-all-btn" class="btn-secondary btn-sm">Select All</button>
+        <button id="curate-deselect-btn" class="btn-secondary btn-sm">Deselect</button>
+        <div class="toolbar-spacer"></div>
+        <span id="curate-selection-count" class="text-dim"></span>
+        <button id="curate-export-split-btn" class="btn-primary btn-sm">Export Split</button>
+        <button id="curate-export-csv-btn" class="btn-secondary btn-sm">Export CSV</button>
+      </div>
+
+      <!-- Body: morphotype panel + grid -->
+      <div class="curate-body" id="curate-body">
+
+        <!-- Left: Morphotype manager -->
+        <div class="morph-panel" id="morph-panel">
+          <div class="morph-panel-header">
+            <span class="panel-title">Morphotypes</span>
+            <button id="add-morph-btn" class="btn-primary btn-xs">+ Add</button>
+          </div>
+          <div id="morph-list" class="morph-list"></div>
+          <div id="add-morph-form" class="add-morph-form hidden">
+            <input id="new-morph-name" type="text" placeholder="e.g. Elongated" class="morph-name-input" />
+            <input id="new-morph-color" type="color" value="#2080c0" class="morph-color-input" />
+            <div class="form-actions">
+              <button id="add-morph-confirm-btn" class="btn-primary btn-xs">Add</button>
+              <button id="add-morph-cancel-btn" class="btn-secondary btn-xs">Cancel</button>
+            </div>
+          </div>
+          <div class="morph-stats" id="morph-stats"></div>
+        </div>
+
+        <!-- Resize handle -->
+        <div class="vert-resize-handle" id="morph-resize-handle"></div>
+
+        <!-- Center: Cell grid (grid view) -->
+        <div class="cell-grid-wrap" id="cell-grid-wrap">
+          <div id="cell-grid" class="cell-grid" tabindex="0">
+            <div id="drag-select-rect" class="drag-select-rect hidden"></div>
+            <p id="cell-grid-empty" class="empty-state">Select an analysis to begin.</p>
+          </div>
+        </div>
+
+        <!-- Center: Image view (per-image) -->
+        <div class="image-view-wrap hidden" id="image-view-wrap">
+          <!-- Nav bar -->
+          <div class="image-nav-bar">
+            <button id="img-prev-btn" class="btn-secondary btn-sm">← Prev</button>
+            <span id="img-nav-label" class="text-dim img-nav-label">—</span>
+            <button id="img-next-btn" class="btn-secondary btn-sm">Next →</button>
+            <span class="toolbar-sep"></span>
+            <span id="img-filename-badge" class="filename-badge-sm"></span>
+          </div>
+          <!-- Single canvas: draws source image + overlays together -->
+          <div class="image-viewer-container" id="image-viewer-container">
+            <canvas id="image-view-canvas" class="image-view-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Image view: cell sidebar -->
+        <div class="image-cell-sidebar hidden" id="image-cell-sidebar">
+          <div class="image-cell-sidebar-header">
+            <span class="panel-title">Cells</span>
+            <span id="img-cell-count" class="text-dim"></span>
+          </div>
+          <div id="img-cell-list" class="img-cell-list"></div>
+        </div>
+
+      </div>
+
+      <!-- Horiz resize handle -->
+      <div class="horiz-resize-handle" id="stats-resize-handle"></div>
+
+      <!-- Bottom: Stats table -->
+      <div class="curate-stats-panel" id="curate-stats-panel">
+        <div class="stats-header">
+          <span class="panel-title">Cell measurements</span>
+          <span id="stats-count" class="text-dim"></span>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" id="curate-stats-table">
+            <thead>
+              <tr>
+                <th>Strain</th><th>File</th><th class="r">Cell</th>
+                <th class="r">L (µm)</th><th class="r">B (µm)</th><th class="r">AR</th>
+                <th class="r">Feret max</th><th class="r">Area (µm²)</th>
+                <th class="r">Solidity</th><th>Morphotype</th>
+              </tr>
+            </thead>
+            <tbody id="curate-stats-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ── 6. Results ── -->
+    <section id="tab-results" class="tab-panel hidden">
+      <div class="tab-header">
+        <div><h2>Results</h2></div>
+        <div class="tab-controls">
+          <label class="ctrl-label">Analysis</label>
+          <select id="analysis-select-results" class="analysis-select">
+            <option value="">— select analysis —</option>
+          </select>
+          <label class="ctrl-label" style="margin-left:12px">Show</label>
+          <select id="results-morph-filter" class="analysis-select">
+            <option value="">All (excl. rejected)</option>
+            <option value="accepted">Accepted only</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button id="download-cells-btn" class="btn-secondary btn-sm">Download CSV</button>
+        <button id="build-excel-btn" class="btn-secondary btn-sm">Build Excel</button>
+        <button id="download-excel-btn" class="btn-secondary btn-sm hidden">Download Excel</button>
+        <button id="refresh-results-btn" class="btn-primary btn-sm">Refresh</button>
+      </div>
+      <div id="excel-status" class="inline-status hidden"></div>
+
+      <!-- Summary table -->
+      <div class="stone-card stone-card--table">
+        <table class="data-table data-table--results">
+          <thead>
+            <tr>
+              <th>Strain</th>
+              <th class="r">N cells</th>
+              <th class="r">Length mean±SD (µm)</th>
+              <th class="r">Breadth mean±SD (µm)</th>
+              <th class="r">Feret max (µm)</th>
+              <th class="r">Feret min (µm)</th>
+              <th class="r">Aspect ratio</th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody">
+            <tr><td colspan="7" class="empty-cell">Select an analysis and click Refresh.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Charts grid -->
+      <div class="results-charts-grid" id="results-charts-grid">
+        <div class="chart-card" id="chart-length">
+          <div class="chart-title">Length (µm)</div>
+          <canvas id="canvas-length"></canvas>
+        </div>
+        <div class="chart-card" id="chart-breadth">
+          <div class="chart-title">Breadth (µm)</div>
+          <canvas id="canvas-breadth"></canvas>
+        </div>
+        <div class="chart-card" id="chart-ar">
+          <div class="chart-title">Aspect Ratio</div>
+          <canvas id="canvas-ar"></canvas>
+        </div>
+        <div class="chart-card" id="chart-area">
+          <div class="chart-title">Area (µm²)</div>
+          <canvas id="canvas-area"></canvas>
+        </div>
+        <div class="chart-card" id="chart-feret-max">
+          <div class="chart-title">Feret Max (µm)</div>
+          <canvas id="canvas-feret-max"></canvas>
+        </div>
+        <div class="chart-card" id="chart-feret-min">
+          <div class="chart-title">Feret Min (µm)</div>
+          <canvas id="canvas-feret-min"></canvas>
+        </div>
+        <div class="chart-card chart-card--wide" id="chart-scatter">
+          <div class="chart-title">Length vs Breadth</div>
+          <canvas id="canvas-scatter"></canvas>
+        </div>
+        <div class="chart-card chart-card--wide" id="chart-solidity">
+          <div class="chart-title">Solidity distribution</div>
+          <canvas id="canvas-solidity"></canvas>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

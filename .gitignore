@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Runtime state (machine-specific — users generate their own)
+config.json
+curation_state.json
+code/selections_*.json
+code/scripts/selected_images.json
+
+# Logs and temp
+*.log
+*.tmp

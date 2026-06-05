@@ -1,0 +1,5 @@
+# Ignore all user result directories except the included test dataset
+*
+!.gitignore
+!nolandella_test
+!nolandella_test/**
