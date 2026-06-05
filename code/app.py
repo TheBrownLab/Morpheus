@@ -902,7 +902,7 @@ def api_set_status(analysis_id: str = Query(default="default")):
             if d.is_dir() and not d.name.startswith(".")
         ]
 
-    result: dict = {"input": {}, "curated": {}}
+    result: dict = {"input": {}, "curated": {}, "training": {}}
 
     for strain in strain_names:
         n_input = 0
@@ -926,6 +926,14 @@ def api_set_status(analysis_id: str = Query(default="default")):
             )
             if n_curated > 0:
                 result["curated"][strain_dir.name] = n_curated
+
+    if TRAINING_DIR.exists():
+        for strain_dir in sorted(TRAINING_DIR.iterdir()):
+            if not strain_dir.is_dir() or strain_dir.name.startswith("."):
+                continue
+            n = sum(1 for f in strain_dir.rglob("*") if f.suffix.lower() in IMAGE_EXTENSIONS)
+            if n > 0:
+                result["training"][strain_dir.name] = n
 
     return result
 

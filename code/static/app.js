@@ -1006,8 +1006,9 @@ async function refreshSetStatus() {
   const analysisId = getSelectedAnalysis("select") || "default";
   try {
     const data = await apiJSON(`/api/set-status?analysis_id=${encodedPath(analysisId)}`);
-    renderSetStatus("input-set-status",   data.input   || {});
-    renderSetStatus("curated-set-status", data.curated || {});
+    renderSetStatus("input-set-status",    data.input    || {});
+    renderSetStatus("curated-set-status",  data.curated  || {});
+    renderSetStatus("training-set-status", data.training || {});
   } catch (_) { /* ignore */ }
 }
 
