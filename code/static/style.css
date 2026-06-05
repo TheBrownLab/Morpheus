@@ -1471,6 +1471,16 @@ select {
 .select-single-toggle-btn:hover { background: var(--moss); color: #f0ecd8; border-color: var(--moss-hi); }
 .select-single-toggle-btn.select-single-selected { background: var(--moss); color: #f0ecd8; border-color: var(--moss-hi); }
 
+.select-kbd-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
 /* Strain filter tabs */
 .strain-tab-btn {
   font-family: var(--font-mono);

@@ -687,7 +687,7 @@
     <!-- Single image view -->
     <div id="select-modal-single-view" class="select-modal-content select-modal-single hidden">
       <div class="select-single-nav-col">
-        <button class="select-single-nav" id="select-single-prev10" title="Back 10 (Shift+←)">«</button>
+        <button class="select-single-nav" id="select-single-prev10" title="Back 10 (↑)">«</button>
         <button class="select-single-nav select-single-nav--main" id="select-single-prev" title="Previous (←)">‹</button>
       </div>
       <div class="select-single-stage">
@@ -699,12 +699,18 @@
           <span id="select-single-strain" class="chip chip--dim"></span>
           <span id="select-single-name"   style="font-family:var(--font-mono);font-size:12px;color:var(--text-mid)"></span>
           <div style="flex:1"></div>
+          <span class="select-kbd-hint">
+            <kbd>←</kbd><kbd>→</kbd> 1 image &nbsp;·&nbsp;
+            <kbd>↑</kbd><kbd>↓</kbd> 10 images &nbsp;·&nbsp;
+            <kbd>Space</kbd> select &nbsp;·&nbsp;
+            <kbd>J</kbd> first unseen
+          </span>
           <button id="select-single-toggle" class="btn-lg select-single-toggle-btn">Mark Selected</button>
         </div>
       </div>
       <div class="select-single-nav-col">
         <button class="select-single-nav select-single-nav--main" id="select-single-next" title="Next (→)">›</button>
-        <button class="select-single-nav" id="select-single-next10" title="Forward 10 (Shift+→)">»</button>
+        <button class="select-single-nav" id="select-single-next10" title="Forward 10 (↓)">»</button>
       </div>
     </div>
 

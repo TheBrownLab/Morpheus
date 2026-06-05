@@ -1283,8 +1283,10 @@ function initSelectTab() {
     if (selectState.viewMode === "single") {
       const visible = visibleSelectImages();
       if (!visible.length) return;
-      if      (e.code === "ArrowRight" || e.code === "ArrowDown") { e.preventDefault(); navSingle(e.shiftKey ? +10 : +1); }
-      else if (e.code === "ArrowLeft"  || e.code === "ArrowUp")   { e.preventDefault(); navSingle(e.shiftKey ? -10 : -1); }
+      if      (e.code === "ArrowRight") { e.preventDefault(); navSingle(+1); }
+      else if (e.code === "ArrowLeft")  { e.preventDefault(); navSingle(-1); }
+      else if (e.code === "ArrowDown")  { e.preventDefault(); navSingle(+10); }
+      else if (e.code === "ArrowUp")    { e.preventDefault(); navSingle(-10); }
       else if (e.code === "Space") {
         e.preventDefault();
         const item = visible[selectState.singleIdx];
