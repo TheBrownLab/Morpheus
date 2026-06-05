@@ -1209,6 +1209,7 @@ function renderSingleView() {
   if (imgEl) {
     imgEl.src = `/api/curation/file?path=${encodedPath(item.abs_path)}`;
     imgEl.alt = item.filename;
+    imgEl.classList.toggle("single-img--selected", !!item.selected);
   }
   if (pos)    pos.textContent = `${idx + 1} / ${visible.length}`;
   if (strain) strain.textContent = item.strain;

@@ -987,11 +987,19 @@ def api_launch_cellpose_gui(body: dict = {}):
 
     # Launch via gui.run(image=...) in a subprocess so the image loads on startup
     image_arg = f", image={repr(str(image_path))}" if image_path else ""
-    script = (
+    # Monkey-patch QCheckBox before importing cellpose.gui: cellpose 4.1.1 uses
+    # checkStateChanged (Qt 6.7+) but PyQt6 6.11 doesn't expose it via bindings.
+    patch = (
+        "from PyQt6.QtWidgets import QCheckBox\n"
+        "if not hasattr(QCheckBox, 'checkStateChanged'):\n"
+        "    QCheckBox.checkStateChanged = QCheckBox.stateChanged\n"
+    )
+    gui_call = (
         f"from cellpose.gui import gui; gui.run({image_arg.lstrip(', ')})"
         if image_path
         else "from cellpose.gui import gui; gui.run()"
     )
+    script = patch + gui_call
     proc = subprocess.Popen([sys.executable, "-c", script], env=env)
     return {"pid": proc.pid, "message": "Cellpose GUI launched", "image": image_path}
 
