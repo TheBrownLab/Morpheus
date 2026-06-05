@@ -988,11 +988,16 @@ def api_launch_cellpose_gui(body: dict = {}):
     # Launch via gui.run(image=...) in a subprocess so the image loads on startup
     image_arg = f", image={repr(str(image_path))}" if image_path else ""
     # Monkey-patch QCheckBox before importing cellpose.gui: cellpose 4.1.1 uses
-    # checkStateChanged (Qt 6.7+) but PyQt6 6.11 doesn't expose it via bindings.
+    # checkStateChanged (Qt 6.7+) which PyQt6 6.x doesn't expose via bindings.
+    # Assigning QCheckBox.stateChanged directly doesn't work because PyQt6 signals
+    # are C++ objects, not Python descriptors — instance lookup bypasses Python's
+    # __get__ and the copied reference never binds. A property() wraps the lookup
+    # in Python's descriptor protocol so self.checkStateChanged returns the already-
+    # bound self.stateChanged signal, which supports .connect() normally.
     patch = (
         "from PyQt6.QtWidgets import QCheckBox\n"
         "if not hasattr(QCheckBox, 'checkStateChanged'):\n"
-        "    QCheckBox.checkStateChanged = QCheckBox.stateChanged\n"
+        "    QCheckBox.checkStateChanged = property(lambda self: self.stateChanged)\n"
     )
     gui_call = (
         f"from cellpose.gui import gui; gui.run({image_arg.lstrip(', ')})"
