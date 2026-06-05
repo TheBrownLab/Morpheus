@@ -38,7 +38,7 @@ Using **conda**:
 conda env create -f environment.yml
 ```
 
-This creates an environment named `morpheus` with Python 3.11, Cellpose 4.x, napari, scikit-image, FastAPI, and all other dependencies.
+This creates an environment named `morpheus` with Python 3.11, Cellpose 4.x, scikit-image, FastAPI, and all other dependencies.
 
 > **Note:** I find that using claude code and asking it to install for you resolve issues that come up works quite well, as coding output is immediately measurable and claude will follow error loops until your coding errors are solved. Such as problems that come up when creating environments, which depends on the users conda installations. 
 
@@ -51,7 +51,7 @@ conda activate morpheus
 ### 4. Launch the app
 
 ```bash
-cd morpheus/code
+cd code/
 uvicorn app:app --reload --port 8000
 ```
 
@@ -66,7 +66,7 @@ The repository includes a complete **Nolandella** dataset ready to explore:
 | Tab | What's pre-loaded |
 |---|---|
 | **Setup** | Nolandella strain with 16 imported images |
-| **Select Images** | Launch napari to browse and select images |
+| **Select Images** | Browse and select images in the built-in full-screen viewer |
 | **Measure** | `nolandella_test` analysis with pre-computed measurements |
 | **Curate** | Browse 32 segmented cells, toggle overlays, assign morphotypes |
 | **Results** | Charts for all measurements |
@@ -99,11 +99,6 @@ conda env update -f environment.yml --prune
 ## Troubleshooting
 
 **`conda activate` not recognised** — run `conda init <your-shell>` (e.g. `conda init zsh`) and restart your terminal.
-
-**napari fails to launch on macOS** — set before starting the server:
-```bash
-export KMP_DUPLICATE_LIB_OK=TRUE
-```
 
 **Port 8000 already in use:**
 ```bash
@@ -146,7 +141,7 @@ morpheus/
 Define strains (name + source image directory) and create analysis types (Cellpose model, measurements to compute, cell size filters, pixel size).
 
 ### 2. Select Images
-Launch napari to browse `data/input/` and click images to include in an analysis, then copy them to `data/curated/<analysis_id>/`.
+Browse `data/input/` in the built-in full-screen viewer. Images already in the set are pre-checked. Check to add, uncheck to remove — clicking **Done** applies changes immediately. Use the Training Set section to select images for model training.
 
 ### 3. Train Model (optional)
 Launch the Cellpose GUI on training images, draw masks, then train a custom model. The new model is saved to `code/models/` for use in analyses.
