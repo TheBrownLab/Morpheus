@@ -5,7 +5,7 @@ channels:
 dependencies:
   - python=3.11
   - napari>=0.5
-  - pyqt
+  - pyqt6
   - tifffile>=2024.1
   - pandas>=2.0
   - numpy>=1.24
