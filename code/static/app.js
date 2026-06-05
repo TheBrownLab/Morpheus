@@ -1640,6 +1640,15 @@ async function onCurateTabLoad() {
   document.getElementById("img-prev-btn")?.addEventListener("click", () => navigateImageView(-1));
   document.getElementById("img-next-btn")?.addEventListener("click", () => navigateImageView(1));
 
+  // Arrow key navigation when in image view (guard: not typing in an input)
+  document.addEventListener("keydown", e => {
+    if (curateState.viewMode !== "image") return;
+    if (document.getElementById("image-view-wrap")?.classList.contains("hidden")) return;
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) return;
+    if      (e.code === "ArrowRight") { e.preventDefault(); navigateImageView(+1); }
+    else if (e.code === "ArrowLeft")  { e.preventDefault(); navigateImageView(-1); }
+  });
+
   initResizeHandles();
   initDragSelect();
 
@@ -1865,10 +1874,7 @@ async function assignSelected(morphId) {
       assignments.push({filename: c.filename, cell_id: c.cell_id, morphotype: morphId});
     }
   });
-  await postJSON("/api/curation/assign", {
-    analysis_id: curateState.analysisId,
-    assignments,
-  });
+  // Update UI immediately before the network call so assignment feels instant
   curateState.selected.clear();
   refreshSelection();
   updateMorphCounts();
@@ -1878,6 +1884,14 @@ async function assignSelected(morphId) {
     const key = card.dataset.key;
     const cell = curateState.cells.find(c => cellKey(c) === key);
     if (cell) applyCardMorph(card, cell.morphotype);
+  });
+  if (curateState.viewMode === "image" && _imageViewImgData) {
+    renderImageCellSidebar(_imageViewImgData.cells);
+  }
+  // Persist in background
+  await postJSON("/api/curation/assign", {
+    analysis_id: curateState.analysisId,
+    assignments,
   });
 }
 
