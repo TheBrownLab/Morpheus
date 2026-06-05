@@ -1,4 +1,1 @@
-*.tif filter=lfs diff=lfs merge=lfs -text
-*.tiff filter=lfs diff=lfs merge=lfs -text
-*.npy filter=lfs diff=lfs merge=lfs -text
 code/models/test_model filter=lfs diff=lfs merge=lfs -text
