@@ -2,7 +2,7 @@
 
 Web-based pipeline for image curation, segmentation/masking using [Cellpose](https://www.cellpose.org/), and morphometric analysis of protists from brightfield OME-TIFF or JPEG/PNG images. Try it out with various microscopy datasets.
 
-A **Nolandella** test dataset and pre-trained model are included so you can explore every tab of the pipeline immediately after installation.
+A test dataset and pre-trained model are included so you can explore every tab of the pipeline immediately after installation.
 
 ---
 
@@ -61,14 +61,14 @@ Open **http://localhost:8000** in your browser.
 
 ## Test dataset
 
-The repository includes a complete **Nolandella** dataset ready to explore:
+The repository includes a complete test dataset ready to explore:
 
 | Tab | What's pre-loaded |
 |---|---|
-| **Setup** | Nolandella strain with 16 imported images |
+| **Setup** | Testing strain with 16 imported images |
 | **Select Images** | Browse and select images in the built-in full-screen viewer |
-| **Measure** | `nolandella_test` analysis with pre-computed measurements |
-| **Curate** | Browse 32 segmented cells, toggle overlays, assign morphotypes |
+| **Measure** | Test analysis with pre-computed measurements |
+| **Curate** | Browse segmented cells, toggle overlays, assign morphotypes |
 | **Results** | Charts for all measurements |
 
 The included model (`code/models/test_model`) was trained on amoeba DIC images at 60× oil (0.1075 µm/px).
@@ -119,15 +119,15 @@ morpheus/
 │   └── static/                       # frontend (index.html, app.js, style.css)
 ├── data/
 │   ├── input/
-│   │   └── Nolandella/               # test images (16 OME-TIFFs, via Git LFS)
+│   │   └── [your strain data here]          # test images (16 OME-TIFFs, via Git LFS)
 │   └── curated/
-│       └── nolandella_test/
-│           └── Nolandella/           # curated test images + segmentation masks
+│       └── [[analysis]]/
+│           └── [strain]/           # curated test images + segmentation masks
 ├── results/
-│   └── nolandella_test/
+│   └── [analysis]/
 │       ├── measurements.json         # pre-computed measurements
 │       ├── all_cells_premeasured.csv
-│       └── Nolandella/               # per-cell crop PNGs
+│       └── [strain]/                 # per-cell crop PNGs of your strains
 ├── config.json                       # strains + analysis configuration
 ├── environment.yml                   # conda environment spec
 └── README.md
