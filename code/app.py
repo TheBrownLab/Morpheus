@@ -33,6 +33,15 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
+from pipeline.constants import (
+    CONDA_ENV_NAMES,
+    DEFAULT_CROP_PAD,
+    DEFAULT_MAX_AREA,
+    DEFAULT_MIN_AREA,
+    DEFAULT_PIXEL_SIZE_UM,
+    DEFAULT_STRAIN_COLOR,
+)
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 CODE_DIR    = Path(__file__).parent          # /pipeline/code/
@@ -86,7 +95,7 @@ def get_pipeline_python() -> str:
         if p.exists():
             return str(p)
     home = Path.home()
-    for env_name in ["morpheus", "morpheus-env"]:
+    for env_name in CONDA_ENV_NAMES:
         for conda_base in [
             home / "opt/miniconda3", home / "opt/mambaforge", home / "opt/miniforge3",
             home / "miniconda3",     home / "mambaforge",      home / "miniforge3",
@@ -351,7 +360,7 @@ async def api_add_strain(body: dict):
     if any(s["name"] == name for s in strains):
         raise HTTPException(status_code=400, detail=f"Strain '{name}' already exists")
 
-    strains.append({"name": name, "source_dir": source_dir, "color": "#4ade80"})
+    strains.append({"name": name, "source_dir": source_dir, "color": DEFAULT_STRAIN_COLOR})
     cfg["strains"] = strains
     save_config(cfg)
     return {"strains": strains}
@@ -486,7 +495,7 @@ def api_strain_status():
         result.append({
             "name": name,
             "source_dir": source_dir,
-            "color": strain.get("color", "#4ade80"),
+            "color": strain.get("color", DEFAULT_STRAIN_COLOR),
             "source_count": source_count,
             "imported_count": imported_count,
         })
@@ -524,10 +533,10 @@ async def api_add_analysis(body: dict):
             "feret_max_um", "feret_min_um", "feret_aspect_ratio",
             "solidity", "perimeter_um",
         ]),
-        "min_area":       int(body.get("min_area", 300)),
-        "max_area":       int(body.get("max_area", 500000)),
+        "min_area":       int(body.get("min_area", DEFAULT_MIN_AREA)),
+        "max_area":       int(body.get("max_area", DEFAULT_MAX_AREA)),
         "diameter":       body.get("diameter"),
-        "pixel_size_um":  body.get("pixel_size_um", 0.1075),
+        "pixel_size_um":  body.get("pixel_size_um", DEFAULT_PIXEL_SIZE_UM),
         "pixels_per_um":  body.get("pixels_per_um"),
         "strain_models":  body.get("strain_models", {}),
     }
@@ -1115,8 +1124,8 @@ async def api_measure_start(body: dict):
             "--dir",      str(curated_dir),   # analysis dir; script iterates strain subdirs
             "--strain",   strain_name,
             "--outdir",   str(out_dir),
-            "--min_area", str(analysis.get("min_area", 300)),
-            "--max_area", str(analysis.get("max_area", 500000)),
+            "--min_area", str(analysis.get("min_area", DEFAULT_MIN_AREA)),
+            "--max_area", str(analysis.get("max_area", DEFAULT_MAX_AREA)),
         ]
         if analysis.get("diameter") is not None:
             cmd += ["--diameter", str(analysis["diameter"])]
@@ -1310,6 +1319,8 @@ def _resolve_path(p: str) -> str:
         return p
     return str(REPO_DIR / path)
 
+MEASUREMENTS_SCHEMA_VERSION = 1
+
 def _load_measurements(analysis_id: str) -> list[dict]:
     mp = measurements_path(analysis_id)
     if not mp.exists():
@@ -1318,7 +1329,23 @@ def _load_measurements(analysis_id: str) -> list[dict]:
             detail=f"measurements.json not found for analysis '{analysis_id}' — run Measure step first",
         )
     with open(mp) as f:
-        data = json.load(f)
+        raw = json.load(f)
+    # Support both legacy format (bare list) and versioned format (dict with "images" key)
+    if isinstance(raw, list):
+        print(
+            f"[morpheus] WARNING: {mp} has no schema_version — "
+            "re-run Measure to upgrade to the versioned format."
+        )
+        data = raw
+    else:
+        file_ver = raw.get("schema_version", 0)
+        if file_ver < MEASUREMENTS_SCHEMA_VERSION:
+            print(
+                f"[morpheus] WARNING: {mp} has schema_version={file_ver}, "
+                f"current is {MEASUREMENTS_SCHEMA_VERSION} — "
+                "re-run Measure to upgrade."
+            )
+        data = raw.get("images", [])
     # Resolve relative paths so all downstream code works with absolute paths
     for img in data:
         for field in _PATH_FIELDS:
@@ -1388,7 +1415,7 @@ def api_curation_image(idx: int, analysis_id: str = Query(default="default")):
         "filename":      filename,
         "filepath":      img_data["filepath"],
         "seg_path":      img_data.get("seg_path", ""),
-        "pixel_size_um": img_data.get("pixel_size_um", 0.1075),
+        "pixel_size_um": img_data.get("pixel_size_um", DEFAULT_PIXEL_SIZE_UM),
         "cells":         cells,
     }
 
@@ -1540,7 +1567,7 @@ def api_curation_export(analysis_id: str = Query(default="default")):
 
     for img_data in images_data:
         filename = img_data["filename"]
-        pixel_size = img_data.get("pixel_size_um", 0.1075)
+        pixel_size = img_data.get("pixel_size_um", DEFAULT_PIXEL_SIZE_UM)
         for cell in img_data.get("cells", []):
             key = _curation_key(analysis_id, filename, cell["cell_id"])
             if not curation.get(key, True):
@@ -1595,7 +1622,7 @@ def api_curation_cells(analysis_id: str = Query(default="default"), strain: str 
                 "strain": img["strain"],
                 "cell_id": cell["cell_id"],
                 "crop_path": cell.get("crop_path", ""),
-                "pixel_size_um": cell.get("pixel_size_um", img.get("pixel_size_um", 0.1075)),
+                "pixel_size_um": cell.get("pixel_size_um", img.get("pixel_size_um", DEFAULT_PIXEL_SIZE_UM)),
                 "morphotype": morph,
                 "length_um": cell.get("length_um"),
                 "breadth_um": cell.get("breadth_um"),
@@ -1737,7 +1764,7 @@ async def api_curation_export_split(body: dict):
 _TEST_STRAIN = {
     "name": "Nolandella",
     "source_dir": "data/input/Nolandella",
-    "color": "#4ade80",
+    "color": DEFAULT_STRAIN_COLOR,
 }
 _TEST_ANALYSIS = {
     "id": "nolandella_test",
@@ -1747,10 +1774,10 @@ _TEST_ANALYSIS = {
         "length_um", "breadth_um", "aspect_ratio", "area_um2",
         "perimeter_um", "solidity", "feret_max_um", "feret_min_um", "feret_aspect_ratio",
     ],
-    "min_area": 300,
-    "max_area": 500000,
+    "min_area": DEFAULT_MIN_AREA,
+    "max_area": DEFAULT_MAX_AREA,
     "diameter": None,
-    "pixel_size_um": 0.1075,
+    "pixel_size_um": DEFAULT_PIXEL_SIZE_UM,
     "pixels_per_um": None,
     "strain_models": {},
 }
@@ -1858,7 +1885,7 @@ def _build_curated_df(analysis_id: str):
         rows = []
         for img_data in images_data:
             filename   = img_data["filename"]
-            pixel_size = img_data.get("pixel_size_um", 0.1075)
+            pixel_size = img_data.get("pixel_size_um", DEFAULT_PIXEL_SIZE_UM)
             for cell in img_data.get("cells", []):
                 key = _curation_key(analysis_id, filename, cell["cell_id"])
                 raw = curation.get(key, True)
@@ -1917,7 +1944,7 @@ async def api_regen_crops(analysis_id: str):
         return raw.astype(np.float32)
 
     regenerated, skipped, errors = 0, 0, []
-    PAD = 40
+    PAD = DEFAULT_CROP_PAD
 
     for img_data in images_data:
         filepath = img_data.get("filepath", "")
@@ -1979,8 +2006,13 @@ def api_results_summary(analysis_id: str = Query(default="default")):
             agg_cols[f"{col}_mean"] = (col, "mean")
             agg_cols[f"{col}_sd"]   = (col, "std")
 
+    import math
     summary = df.groupby(group_cols).agg(**agg_cols).round(3).reset_index()
-    return summary.to_dict(orient="records")
+    # Replace NaN (e.g. std of a single-cell group) with None so JSON is valid
+    return [
+        {k: None if isinstance(v, float) and math.isnan(v) else v for k, v in row.items()}
+        for row in summary.to_dict(orient="records")
+    ]
 
 
 @app.get("/api/results/chart-data")

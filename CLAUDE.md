@@ -12,8 +12,18 @@ cd /Users/tristamoeba/Projects/Morpheus/code
 uvicorn app:app --reload --port 8000
 ```
 
+**Install (reproducible):** `conda env create -f environment.lock.yml`  
+**Install (dev/flexible):** `conda env create -f environment.yml`  
+**Update lock file after changing environment.yml:** `conda env export -n morpheus --no-builds > environment.lock.yml`
+
 Python path: `/Users/tristamoeba/opt/miniconda3/envs/morpheus/bin/python`  
 (Falls back to `napari-env` if `morpheus` env not found — see `get_pipeline_python()` in `app.py`.)
+
+**Run tests** before committing changes to `app.py`:
+```bash
+cd /Users/tristamoeba/Projects/Morpheus/code
+/Users/tristamoeba/opt/miniconda3/envs/morpheus/bin/python -m pytest ../tests/ -q
+```
 
 **macOS Qt fix** — required when launching napari from a subprocess:
 ```bash
@@ -112,9 +122,12 @@ CURATION_STATE_FILE = REPO_DIR / "curation_state.json"
 Model path is stored as bare name; resolved to `MODELS_DIR/<name>` at runtime.
 
 ### `measurements.json` (per analysis, in `results/<analysis_id>/`)
-List of image dicts:
+Versioned wrapper object (`schema_version: 1`) containing a list of image dicts.
+Legacy files written before schema versioning are bare lists — `_load_measurements()` in `app.py` handles both and logs a warning for the legacy format.
 ```json
 {
+  "schema_version": 1,
+  "images": [{
   "strain": "Nolandella",
   "filename": "image.ome.tif",
   "filepath": "data/curated/nolandella_test/Nolandella/image.ome.tif",
@@ -133,6 +146,7 @@ List of image dicts:
     "crop_path": "results/nolandella_test/Nolandella/image_cell001.png",
     "feret_crop_path": "results/nolandella_test/Nolandella/image_cell001.png",
     "pixel_size_um": 0.1075
+  }]
   }]
 }
 ```

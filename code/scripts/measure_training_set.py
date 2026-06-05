@@ -345,7 +345,7 @@ def main():
     # Save measurements.json
     json_path = output_root / "measurements.json"
     with open(json_path, "w") as f:
-        json.dump(all_image_data, f, indent=2)
+        json.dump({"schema_version": 1, "images": all_image_data}, f, indent=2)
     print(f"\nSaved: {json_path}")
 
     if not all_flat_rows:
