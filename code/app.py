@@ -115,9 +115,42 @@ def get_pipeline_python() -> str:
     return sys.executable
 
 
+# ── LFS helpers ───────────────────────────────────────────────────────────────
+
+def _git_lfs_version() -> str | None:
+    """Return git-lfs version string, or None if not installed."""
+    try:
+        r = subprocess.run(["git", "lfs", "version"], capture_output=True, text=True, timeout=5)
+        return r.stdout.strip() if r.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _lfs_checkout() -> bool:
+    """Run `git lfs checkout` in REPO_DIR. Returns True if it succeeded."""
+    try:
+        r = subprocess.run(
+            ["git", "lfs", "checkout"],
+            cwd=str(REPO_DIR), capture_output=True, text=True, timeout=120,
+        )
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 
-app = FastAPI(title="Amoeba Morphometrics Pipeline")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
+    # On startup: smudge any LFS pointer files from the local object cache so
+    # users who cloned without `git lfs pull` see real images immediately.
+    if _git_lfs_version():
+        _lfs_checkout()
+    yield
+
+app = FastAPI(title="Amoeba Morphometrics Pipeline", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -202,12 +235,12 @@ def api_env_status():
             lines = [l for l in r.stdout.strip().splitlines() if l.strip()]
             data = json.loads(lines[-1])
             ok = all(data["packages"].get(p) for p in REQUIRED_PACKAGES)
-            result = {"ok": ok, "python": python, **data, "conda": find_conda()}
+            result = {"ok": ok, "python": python, **data, "conda": find_conda(), "git_lfs": _git_lfs_version()}
             _env_status_cache = result
             return result
     except Exception as e:
         pass
-    return {"ok": False, "python": python, "packages": {}, "pyver": None, "conda": find_conda()}
+    return {"ok": False, "python": python, "packages": {}, "pyver": None, "conda": find_conda(), "git_lfs": _git_lfs_version()}
 
 
 @app.post("/api/env/set-python")
@@ -219,6 +252,17 @@ async def api_env_set_python(body: dict):
     cfg["python_path"] = path or None
     save_config(cfg)
     _env_status_cache.clear()
+    return {"ok": True}
+
+
+@app.post("/api/env/lfs-fix")
+def api_env_lfs_fix():
+    """Run `git lfs checkout` to smudge any pointer files from the local LFS cache."""
+    if not _git_lfs_version():
+        raise HTTPException(status_code=400, detail="git-lfs is not installed — install it from https://git-lfs.com then re-run")
+    ok = _lfs_checkout()
+    if not ok:
+        raise HTTPException(status_code=500, detail="git lfs checkout failed — the LFS objects may not be cached locally; try 'git lfs pull' from the repo root")
     return {"ok": True}
 
 

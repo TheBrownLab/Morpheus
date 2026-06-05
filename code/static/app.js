@@ -795,6 +795,10 @@ function renderEnvStatus(data) {
 
   const pkgs = data.packages || {};
   if (pkgList) {
+    const lfsVer = data.git_lfs;
+    const lfsChip = `<span class="env-pkg ${lfsVer ? "env-pkg--ok" : "env-pkg--missing"}">
+      <span class="env-pkg-dot"></span>git-lfs${lfsVer ? `<span class="env-pkg-ver">${lfsVer.replace("git-lfs/","").split(" ")[0]}</span>` : ""}
+    </span>`;
     pkgList.innerHTML = [...PKG_REQUIRED, ...PKG_OPTIONAL].map(pkg => {
       const ver = pkgs[pkg];
       const required = PKG_REQUIRED.includes(pkg);
@@ -802,7 +806,15 @@ function renderEnvStatus(data) {
       return `<span class="env-pkg ${ok ? "env-pkg--ok" : required ? "env-pkg--missing" : "env-pkg--optional"}">
         <span class="env-pkg-dot"></span>${pkg}${ok ? `<span class="env-pkg-ver">${ver}</span>` : ""}
       </span>`;
-    }).join("");
+    }).join("") + lfsChip;
+
+    if (!lfsVer) {
+      const hint = document.createElement("p");
+      hint.className = "card-desc";
+      hint.style.marginTop = "6px";
+      hint.innerHTML = `git-lfs is required to download large image files. Install from <a href="https://git-lfs.com" target="_blank" class="doc-link">git-lfs.com ↗</a> then restart the server.`;
+      pkgList.after(hint);
+    }
   }
 
   const allOk = data.ok;
@@ -1077,6 +1089,22 @@ function setSelectViewMode(mode) {
   if (mode === "single") renderSingleView();
 }
 
+async function triggerLfsFix(btn, onSuccess) {
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Fixing…";
+  try {
+    await postJSON("/api/env/lfs-fix", {});
+    btn.textContent = "Done ✓";
+    setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 3000);
+    if (onSuccess) onSuccess();
+  } catch (e) {
+    btn.textContent = orig;
+    btn.disabled = false;
+    showError(e.message);
+  }
+}
+
 function renderSelectLfsBanner(lfsCount) {
   let banner = document.getElementById("select-lfs-banner");
   if (lfsCount === 0) {
@@ -1090,7 +1118,10 @@ function renderSelectLfsBanner(lfsCount) {
     const gridView = document.getElementById("select-modal-grid-view");
     if (gridView) gridView.insertAdjacentElement("beforebegin", banner);
   }
-  banner.innerHTML = `<span class="lfs-dot lfs-dot--warn"></span> ${lfsCount} image${lfsCount !== 1 ? "s are" : " is"} undownloaded Git LFS pointer${lfsCount !== 1 ? "s" : ""} — run <code>git lfs pull</code> in the repo root, then reload.`;
+  banner.innerHTML = `<span class="lfs-dot lfs-dot--warn"></span> <span>${lfsCount} image${lfsCount !== 1 ? "s are" : " is"} undownloaded Git LFS pointer${lfsCount !== 1 ? "s" : ""}.</span> <button class="btn-secondary btn-xs lfs-fix-btn">Fix now</button>`;
+  banner.querySelector(".lfs-fix-btn").addEventListener("click", async (e) => {
+    await triggerLfsFix(e.currentTarget, () => loadSelectImages());
+  });
 }
 
 async function loadSelectImages() {
@@ -1390,9 +1421,12 @@ async function refreshTrainingStrainButtons() {
     container.innerHTML = "";
     const totalLfs = strains.reduce((n, s) => n + (s.lfs_pointers || 0), 0);
     if (totalLfs > 0) {
-      const warn = document.createElement("p");
-      warn.className = "text-amber-400 text-xs mb-2";
-      warn.textContent = `${totalLfs} image${totalLfs !== 1 ? "s are" : " is"} Git LFS pointer${totalLfs !== 1 ? "s" : ""} and haven't been downloaded — run 'git lfs pull' in the repo, then reload.`;
+      const warn = document.createElement("div");
+      warn.className = "lfs-row mb-2";
+      warn.innerHTML = `<span class="lfs-dot lfs-dot--warn"></span><span class="lfs-label">${totalLfs} image${totalLfs !== 1 ? "s are" : " is"} undownloaded LFS pointer${totalLfs !== 1 ? "s" : ""}.</span> <button class="btn-secondary btn-xs lfs-fix-btn">Fix now</button>`;
+      warn.querySelector(".lfs-fix-btn").addEventListener("click", async (e) => {
+        await triggerLfsFix(e.currentTarget, () => refreshTrainingStrainButtons());
+      });
       container.appendChild(warn);
     }
     strains.forEach(s => {
@@ -2850,7 +2884,10 @@ function renderLfsIndicator(status) {
   if (status.lfs_ok) {
     el.innerHTML = `<span class="lfs-dot lfs-dot--ok"></span><span class="lfs-label">LFS files downloaded (${status.lfs_total} images)</span>`;
   } else {
-    el.innerHTML = `<span class="lfs-dot lfs-dot--warn"></span><span class="lfs-label">${status.lfs_pointers} of ${status.lfs_total} images are undownloaded LFS pointers — run <code>git lfs pull</code> in the repo</span>`;
+    el.innerHTML = `<span class="lfs-dot lfs-dot--warn"></span><span class="lfs-label">${status.lfs_pointers} of ${status.lfs_total} images are undownloaded LFS pointers.</span> <button class="btn-secondary btn-xs lfs-fix-btn">Fix now</button>`;
+    el.querySelector(".lfs-fix-btn").addEventListener("click", async (e) => {
+      await triggerLfsFix(e.currentTarget, () => loadTestDataStatus());
+    });
   }
 }
 

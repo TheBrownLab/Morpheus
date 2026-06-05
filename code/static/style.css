@@ -1437,6 +1437,7 @@ select {
   border-bottom: 1px solid rgba(192,160,64,0.2);
 }
 .select-lfs-banner code { font-family: monospace; background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 3px; }
+.lfs-row .lfs-fix-btn, .select-lfs-banner .lfs-fix-btn { margin-left: 4px; flex-shrink: 0; }
 
 .select-lfs-thumb {
   display: flex;
