@@ -1913,6 +1913,7 @@ async function assignSelected(morphId) {
   });
   if (curateState.viewMode === "image" && _imageViewImgData) {
     renderImageCellSidebar(_imageViewImgData.cells);
+    redrawImageViewCanvas();
   }
   // Persist in background
   await postJSON("/api/curation/assign", {
@@ -2384,22 +2385,27 @@ function redrawImageViewCanvas() {
     ctx.beginPath(); ctx.arc(cx, cy, lw * 2, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.fill();
 
-    // Cell ID label — colored by morphotype, dark background pill for visibility
+    // Cell ID label — colored pill (morphotype color) with white text for guaranteed contrast
     const morph = curateState.morphotypes.find(m => m.id === cell.morphotype);
-    const labelColor = morph ? morph.color
+    const pillColor = morph ? morph.color
       : cell.morphotype === "accepted" ? "#4ade80"
       : cell.morphotype === "rejected" ? "#ff5555"
-      : "#dddddd";
+      : "#666666";
     const label = String(cell.cell_id);
-    ctx.font = `bold ${fs}px monospace`;
+    const labelFs = Math.max(20, canvas.width / 55);
+    ctx.font = `bold ${labelFs}px monospace`;
     const tw  = ctx.measureText(label).width;
-    const pad = lw * 2;
+    const pad = lw * 3;
     const lx  = c1 + lw;
     const ly  = r1 + lw;
-    ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillRect(lx - pad, ly, tw + pad * 2, fs + pad);
-    ctx.fillStyle = labelColor;
-    ctx.fillText(label, lx, ly + fs);
+    ctx.save();
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle = pillColor;
+    ctx.fillRect(lx - pad, ly, tw + pad * 2, labelFs + pad * 1.2);
+    ctx.restore();
+    ctx.fillStyle = "white";
+    ctx.font = `bold ${labelFs}px monospace`;
+    ctx.fillText(label, lx, ly + labelFs);
   });
 }
 
