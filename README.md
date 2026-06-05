@@ -157,7 +157,7 @@ Run Cellpose segmentation + regionprops on selected images. Outputs `results/<an
 ### 5. Curate
 Review cells in grid or per-image view. Assign morphotypes, accept/reject cells. Toggle between ellipse-axis and Feret-diameter overlays. Export curated CSV.
 
-### 6. Results
+### 6. Results -- not working that well TBH
 Summary table (mean ± SD per strain and morphotype) with scatter and distribution charts. Download CSV or build a multi-tab Excel file.
 
 ---
