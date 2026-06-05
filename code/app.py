@@ -809,11 +809,15 @@ async def api_use_all_images(body: dict):
 
 @app.get("/api/select/images")
 def api_select_images(analysis_id: str = Query(...), destination: str = Query("curated")):
-    """List all images in data/input/ annotated with selection/viewed state."""
-    sel_file = CODE_DIR / f"selections_{analysis_id}_{destination}.json"
-    sel_data = _read_json(sel_file, {"selected": [], "viewed": []})
-    selected_abs = set(sel_data.get("selected", []))
-    viewed_abs   = set(sel_data.get("viewed",   []))
+    """List all images in data/input/, marking which are already in the destination set."""
+    dest_root = TRAINING_DIR if destination == "training" else CURATED_DIR / analysis_id
+
+    # Build lookup of filenames already in the destination directory
+    in_set_names: set[str] = set()
+    if dest_root.exists():
+        for f in dest_root.rglob("*"):
+            if f.suffix.lower() in IMAGE_EXTENSIONS:
+                in_set_names.add(f.name)
 
     images = []
     if INPUT_DIR.exists():
@@ -825,106 +829,64 @@ def api_select_images(analysis_id: str = Query(...), destination: str = Query("c
                 strain = rel_to_input.parts[0] if len(rel_to_input.parts) > 1 else f.parent.name
             except ValueError:
                 strain = f.parent.name
-            abs_str = str(f)
-            rel_str = str(f.relative_to(REPO_DIR))
             images.append({
-                "path":      rel_str,
-                "abs_path":  abs_str,
-                "strain":    strain,
-                "filename":  f.name,
-                "selected":  abs_str in selected_abs,
-                "viewed":    abs_str in viewed_abs,
-            })
-
-    selected_count = sum(1 for i in images if i["selected"])
-    viewed_count   = sum(1 for i in images if i["viewed"])
-    return {
-        "images":          images,
-        "selected_count":  selected_count,
-        "viewed_count":    viewed_count,
-        "total":           len(images),
-        "selections_file": str(sel_file),
-    }
-
-
-@app.post("/api/select/save")
-async def api_select_save(body: dict):
-    """Persist browser image selections to the selections JSON file."""
-    analysis_id = body.get("analysis_id", "default")
-    destination = body.get("destination", "curated")
-    selected    = body.get("selected", [])
-    viewed      = body.get("viewed",   [])
-    sel_file = CODE_DIR / f"selections_{analysis_id}_{destination}.json"
-    data = {"selected": selected, "viewed": viewed, "count": len(selected)}
-    sel_file.write_text(json.dumps(data, indent=2))
-    return {"ok": True, "path": str(sel_file), "count": len(selected)}
-
-
-@app.get("/api/set/images")
-def api_set_images(analysis_id: str = Query(...), destination: str = Query("curated")):
-    """List images currently in the curated or training set directory."""
-    if destination == "training":
-        root = TRAINING_DIR
-    else:
-        root = CURATED_DIR / analysis_id
-
-    images = []
-    if root.exists():
-        for f in sorted(root.rglob("*")):
-            if f.suffix.lower() not in IMAGE_EXTENSIONS:
-                continue
-            # Determine strain from parent dir name relative to root
-            try:
-                rel = f.relative_to(root)
-                strain = rel.parts[0] if len(rel.parts) > 1 else ""
-            except ValueError:
-                strain = f.parent.name
-            abs_str = str(f.resolve())
-            seg_path = f.parent / (f.stem + "_seg.npy")
-            images.append({
-                "abs_path": abs_str,
+                "abs_path": str(f),
                 "strain":   strain,
                 "filename": f.name,
-                "has_mask": seg_path.exists(),
+                "in_set":   f.name in in_set_names,
             })
-    return {"images": images, "total": len(images), "destination": destination}
+
+    return {"images": images, "total": len(images), "in_set_count": sum(1 for i in images if i["in_set"])}
 
 
-@app.post("/api/set/remove")
-async def api_set_remove(body: dict):
-    """Remove images (and their masks) from the curated or training set."""
-    analysis_id = body.get("analysis_id", "default")
-    destination = body.get("destination", "curated")
-    paths       = body.get("paths", [])   # list of absolute paths
+@app.post("/api/select/apply")
+async def api_select_apply(body: dict):
+    """Apply selections: copy newly selected images, remove deselected ones."""
+    analysis_id    = body.get("analysis_id", "default")
+    destination    = body.get("destination", "curated")
+    selected_paths = body.get("selected", [])   # abs paths of currently selected input images
 
-    if destination == "training":
-        root = TRAINING_DIR
-    else:
-        root = CURATED_DIR / analysis_id
+    dest_root = TRAINING_DIR if destination == "training" else CURATED_DIR / analysis_id
 
-    removed, errors = 0, []
-    for p_str in paths:
-        p = Path(p_str)
-        # Safety: must be under the expected set directory
-        try:
-            p.relative_to(root)
-        except ValueError:
-            errors.append({"path": p_str, "error": "outside set directory"})
-            continue
-        if not p.exists():
-            errors.append({"path": p_str, "error": "not found"})
-            continue
-        try:
-            p.unlink()
-            removed += 1
-            # Remove companion mask file if present
-            seg = p.parent / (p.stem + "_seg.npy")
-            if seg.exists():
-                seg.unlink()
-        except Exception as e:
-            errors.append({"path": p_str, "error": str(e)})
+    # Current set: filename → dest Path
+    current: dict[str, Path] = {}
+    if dest_root.exists():
+        for f in dest_root.rglob("*"):
+            if f.suffix.lower() in IMAGE_EXTENSIONS:
+                current[f.name] = f
 
-    return {"removed": removed, "errors": errors}
+    # Desired set: filename → src Path
+    desired: dict[str, Path] = {Path(p).name: Path(p) for p in selected_paths}
+
+    added, removed, errors = 0, 0, []
+
+    for name, src in desired.items():
+        if name not in current:
+            try:
+                rel = src.relative_to(INPUT_DIR)
+                strain = rel.parts[0] if len(rel.parts) > 1 else src.parent.name
+            except ValueError:
+                strain = src.parent.name
+            dest_dir = dest_root / strain
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.copy2(str(src), str(dest_dir / src.name))
+                added += 1
+            except Exception as e:
+                errors.append({"path": str(src), "error": str(e)})
+
+    for name, dest_path in current.items():
+        if name not in desired:
+            try:
+                dest_path.unlink()
+                removed += 1
+                seg = dest_path.parent / (dest_path.stem + "_seg.npy")
+                if seg.exists():
+                    seg.unlink()
+            except Exception as e:
+                errors.append({"path": str(dest_path), "error": str(e)})
+
+    return {"added": added, "removed": removed, "errors": errors}
 
 
 @app.get("/api/set-status")

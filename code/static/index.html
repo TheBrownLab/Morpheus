@@ -288,7 +288,7 @@
           </select>
         </div>
       </div>
-      <p class="tab-desc">Browse and select images from <code>data/input/</code>, then copy them into the curated set for the selected analysis.</p>
+      <p class="tab-desc">Select images from <code>data/input/</code> for measurement or model training. Images already in a set are pre-checked — deselecting removes them.</p>
 
       <div class="two-col">
         <div class="stone-card">
@@ -299,12 +299,10 @@
 
         <div class="stone-card">
           <h3>Analysis Set <span class="chip">Curated</span></h3>
-          <p class="card-desc">Images selected for measurement. Copies into <code>data/curated/&lt;analysis&gt;/&lt;strain&gt;/</code>.</p>
+          <p class="card-desc">Images for measurement in <code>data/curated/&lt;analysis&gt;/</code>.</p>
           <div id="curated-set-status" class="status-line">—</div>
           <div class="action-row">
             <button id="browse-curated-btn" class="btn-primary btn-sm">Browse &amp; Select</button>
-            <button id="review-curated-btn" class="btn-secondary btn-sm">Review Set</button>
-            <button id="copy-to-curated-btn" class="btn-secondary btn-sm">Copy Selections</button>
             <button id="use-all-images-btn" class="btn-secondary btn-sm">Use All</button>
           </div>
           <div id="curated-sel-info" class="inline-status hidden"></div>
@@ -313,11 +311,9 @@
 
       <div class="stone-card">
         <h3>Training Set <span class="chip chip--dim">Optional — for model training</span></h3>
-        <p class="card-desc">Select images for drawing Cellpose masks and training a custom model. Copies into <code>data/training/&lt;strain&gt;/</code>.</p>
+        <p class="card-desc">Images for drawing Cellpose masks in <code>data/training/</code>.</p>
         <div class="action-row">
           <button id="browse-training-btn" class="btn-primary btn-sm">Browse &amp; Select</button>
-          <button id="review-training-btn" class="btn-secondary btn-sm">Review Set</button>
-          <button id="copy-to-training-btn" class="btn-secondary btn-sm">Copy Selections</button>
         </div>
         <div id="training-sel-info" class="inline-status hidden"></div>
       </div>
@@ -325,12 +321,11 @@
       <div class="stone-card stone-card--dim">
         <h3>How it works</h3>
         <ol class="how-list">
-          <li>Select an analysis above</li>
-          <li>Click <strong>Browse &amp; Select</strong> — a full-screen image browser opens</li>
-          <li>Switch between <strong>Grid</strong> (scan many at once) and <strong>Single</strong> (inspect one at a time)</li>
-          <li>Click thumbnails or press <kbd>Space</kbd> to mark images. <kbd>←</kbd> <kbd>→</kbd> navigate, <kbd>J</kbd> jumps to first unseen</li>
-          <li>Filter by strain using the tabs at the top</li>
-          <li>Click <strong>Done</strong> to close, then <strong>Copy Selections</strong> to copy marked images</li>
+          <li>Select an analysis above, then click <strong>Browse &amp; Select</strong></li>
+          <li>Images already in the set are pre-checked. Check new images to add them, uncheck to remove</li>
+          <li>Switch between <strong>Grid</strong> (scan many) and <strong>Single</strong> (inspect one at a time)</li>
+          <li>Click a thumbnail or press <kbd>Space</kbd> to toggle. <kbd>←</kbd><kbd>→</kbd> navigate, <kbd>Shift+←</kbd><kbd>Shift+→</kbd> skip 10, <kbd>J</kbd> jumps to first unseen</li>
+          <li>Click <strong>Done</strong> — changes are applied immediately</li>
         </ol>
       </div>
 
@@ -669,10 +664,8 @@
   <!-- ── Full-screen image selection browser (shared by curated & training) ── -->
   <div id="select-modal" class="select-modal hidden" role="dialog" aria-modal="true">
 
-    <!-- Top bar: mode label · strain tabs · stats · view toggle · actions -->
+    <!-- Top bar: strain tabs · stats · view toggle · actions -->
     <div class="select-modal-bar">
-      <span id="select-modal-title" class="select-modal-title"></span>
-      <span class="toolbar-sep"></span>
       <div class="select-modal-strains" id="select-modal-strains"></div>
       <div style="flex:1;min-width:8px"></div>
       <span id="select-stats" class="select-modal-stats"></span>

@@ -989,12 +989,10 @@ function initSetupTab() {
 const selectState = {
   analysisId:   null,
   destination:  "curated",
-  mode:         "select",  // "select" | "review"
-  images:       [],    // [{path, abs_path, strain, filename, selected, viewed, marked}]
+  images:       [],    // [{abs_path, strain, filename, selected, viewed}]
   strainFilter: "all",
   viewMode:     "grid",   // "grid" | "single"
-  singleIdx:    0,        // index within visibleSelectImages()
-  _saveTimer:   null,
+  singleIdx:    0,
   _observer:    null,
 };
 
@@ -1023,74 +1021,49 @@ function renderSetStatus(elId, counts) {
   ).join("");
 }
 
-function _openModal(destination, mode) {
+async function openSelectBrowser(destination) {
   const analysisId = getSelectedAnalysis("select");
   if (!analysisId) {
-    const btnId = mode === "review" ? `review-${destination}-btn` : `browse-${destination}-btn`;
-    const btn = document.getElementById(btnId);
+    const btn = document.getElementById(`browse-${destination}-btn`);
     if (btn) { const t = btn.textContent; btn.textContent = "Select an analysis first"; setTimeout(() => { btn.textContent = t; }, 1800); }
-    return null;
+    return;
   }
   selectState.destination  = destination;
   selectState.analysisId   = analysisId;
-  selectState.mode         = mode;
   selectState.strainFilter = "all";
   selectState.singleIdx    = 0;
   document.getElementById("select-modal")?.classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  return analysisId;
-}
-
-async function openSelectBrowser(destination) {
-  if (!_openModal(destination, "select")) return;
-  _updateModalChrome();
   setSelectViewMode("grid");
   await loadSelectImages();
 }
 
-async function openReviewBrowser(destination) {
-  if (!_openModal(destination, "review")) return;
-  _updateModalChrome();
-  setSelectViewMode("grid");
-  await loadSetImages();
-}
-
-function _updateModalChrome() {
-  const { mode, destination } = selectState;
-  const titleEl = document.getElementById("select-modal-title");
-  if (titleEl) {
-    const dest = destination === "training" ? "Training Set" : "Analysis Set";
-    titleEl.textContent = mode === "review" ? `Reviewing ${dest}` : `Selecting for ${dest}`;
-    titleEl.className   = "select-modal-title" + (mode === "review" ? " select-modal-title--review" : "");
-  }
-  const allBtn = document.getElementById("select-all-btn");
-  const deselBtn = document.getElementById("select-deselect-all-btn");
-  if (mode === "review") {
-    if (allBtn)   allBtn.textContent   = "Mark All for Removal";
-    if (deselBtn) deselBtn.textContent = "Unmark All";
-  } else {
-    if (allBtn)   allBtn.textContent   = "Select All";
-    if (deselBtn) deselBtn.textContent = "Deselect All";
-  }
-}
-
 async function closeSelectBrowser() {
-  // In review mode, apply any removals before closing
-  if (selectState.mode === "review") {
-    const toRemove = selectState.images.filter(i => i.marked).map(i => i.abs_path);
-    if (toRemove.length > 0) {
-      try {
-        const result = await postJSON("/api/set/remove", {
-          analysis_id: selectState.analysisId,
-          destination: selectState.destination,
-          paths: toRemove,
-        });
-        if (result.errors?.length) console.warn("Remove errors:", result.errors);
-      } catch (e) { console.error("Failed to remove images:", e); }
+  const closeBtn = document.getElementById("select-modal-close");
+  if (closeBtn) { closeBtn.disabled = true; closeBtn.textContent = "Applying…"; }
+
+  const selected = selectState.images.filter(i => i.selected).map(i => i.abs_path);
+  try {
+    const result = await postJSON("/api/select/apply", {
+      analysis_id: selectState.analysisId,
+      destination: selectState.destination,
+      selected,
+    });
+    const infoEl = document.getElementById(`${selectState.destination}-sel-info`);
+    if (infoEl && (result.added > 0 || result.removed > 0)) {
+      const parts = [];
+      if (result.added)   parts.push(`${result.added} added`);
+      if (result.removed) parts.push(`${result.removed} removed`);
+      infoEl.textContent = parts.join(", ") + ".";
+      infoEl.classList.remove("hidden");
+    } else if (infoEl) {
+      infoEl.classList.add("hidden");
     }
-  }
+  } catch (e) { console.error("apply failed:", e); }
+
   document.getElementById("select-modal")?.classList.add("hidden");
   document.body.style.overflow = "";
+  if (closeBtn) { closeBtn.disabled = false; closeBtn.textContent = "✓ Done"; }
   if (selectState._observer) { selectState._observer.disconnect(); selectState._observer = null; }
   refreshSetStatus();
 }
@@ -1111,25 +1084,8 @@ async function loadSelectImages() {
     const data = await apiJSON(
       `/api/select/images?analysis_id=${encodedPath(analysisId)}&destination=${destination}`
     );
-    selectState.images = data.images || [];
-    renderStrainTabs();
-    renderSelectGrid();
-    updateSelectStats();
-  } catch (e) {
-    if (grid) grid.innerHTML = `<div class="empty-state" style="padding:32px">Error: ${e.message}</div>`;
-  }
-}
-
-async function loadSetImages() {
-  const { analysisId, destination } = selectState;
-  const grid = document.getElementById("select-grid");
-  if (grid) grid.innerHTML = '<div class="empty-state" style="padding:32px">Loading images…</div>';
-  try {
-    const data = await apiJSON(
-      `/api/set/images?analysis_id=${encodedPath(analysisId)}&destination=${destination}`
-    );
-    // In review mode: all images start unmarked (not flagged for removal)
-    selectState.images = (data.images || []).map(img => ({ ...img, marked: false, viewed: false }));
+    // Pre-check images that are already in the destination set
+    selectState.images = (data.images || []).map(img => ({ ...img, selected: img.in_set, viewed: img.in_set }));
     renderStrainTabs();
     renderSelectGrid();
     updateSelectStats();
@@ -1172,33 +1128,19 @@ function renderSelectGrid() {
   if (selectState._observer) { selectState._observer.disconnect(); selectState._observer = null; }
 
   const visible = visibleSelectImages();
-  const isReview = selectState.mode === "review";
-
   if (!visible.length) {
-    const msg = isReview
-      ? "No images in this set yet — use Browse &amp; Select to add images, then Copy Selections."
-      : "No images found in data/input/ — import strain images in Setup first";
-    grid.innerHTML = `<div class="empty-state" style="padding:32px">${msg}</div>`;
+    grid.innerHTML = '<div class="empty-state" style="padding:32px">No images found in data/input/ — import strain images in Setup first</div>';
     return;
   }
 
   grid.innerHTML = visible.map(img => {
-    const idx = selectState.images.indexOf(img);
-    let activeCls = "", badge = "";
-    if (isReview) {
-      activeCls = img.marked ? " cell-card--remove" : " cell-card--in-set";
-      badge = img.marked
-        ? `<div class="select-check-badge select-remove-badge">✕</div>`
-        : `<div class="select-check-badge select-inset-badge">✓</div>`;
-    } else {
-      activeCls = img.selected ? " cell-card--selected" : "";
-      badge = `<div class="select-check-badge">✓</div>`;
-    }
-    const viewCls = img.viewed ? " img-viewed" : "";
-    return `<div class="cell-card img-select-card${activeCls}${viewCls}" data-idx="${idx}" tabindex="0">
+    const idx      = selectState.images.indexOf(img);
+    const selCls   = img.selected ? " cell-card--selected" : "";
+    const viewCls  = img.viewed   ? " img-viewed"          : "";
+    return `<div class="cell-card img-select-card${selCls}${viewCls}" data-idx="${idx}" tabindex="0">
       <div class="cell-card-img-wrap">
         <img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.abs_path)}&thumb=1" alt="">
-        ${badge}
+        <div class="select-check-badge">✓</div>
       </div>
       <div class="cell-card-info">
         <span class="chip chip--dim" style="font-size:7px;padding:1px 4px;margin-bottom:1px">${img.strain}</span>
@@ -1211,17 +1153,15 @@ function renderSelectGrid() {
     card.addEventListener("click", () => toggleSelectImage(+card.dataset.idx));
   });
 
-  // Mark images as viewed when they scroll into the browser viewport
+  // Dim unviewed images; mark as viewed when they scroll into the scrollable container
   const scrollRoot = document.getElementById("select-modal-grid-view");
   selectState._observer = new IntersectionObserver(entries => {
-    let changed = false;
     entries.forEach(entry => {
       if (!entry.isIntersecting) return;
       const idx = +entry.target.dataset.idx;
       const img = selectState.images[idx];
-      if (img && !img.viewed) { img.viewed = true; entry.target.classList.add("img-viewed"); changed = true; }
+      if (img && !img.viewed) { img.viewed = true; entry.target.classList.add("img-viewed"); }
     });
-    if (changed) { updateSelectStats(); if (!isReview) scheduleSelectSave(); }
   }, { root: scrollRoot, threshold: 0.4 });
   grid.querySelectorAll(".img-select-card").forEach(c => selectState._observer.observe(c));
 }
@@ -1229,84 +1169,20 @@ function renderSelectGrid() {
 function toggleSelectImage(idx) {
   const img = selectState.images[idx];
   if (!img) return;
+  img.selected = !img.selected;
+  img.viewed   = true;
   const card = document.querySelector(`#select-grid [data-idx="${idx}"]`);
-  if (selectState.mode === "review") {
-    img.marked = !img.marked;
-    img.viewed = true;
-    if (card) {
-      card.classList.toggle("cell-card--remove", img.marked);
-      card.classList.toggle("cell-card--in-set", !img.marked);
-      card.classList.add("img-viewed");
-      card.querySelector(".select-check-badge").textContent = img.marked ? "✕" : "✓";
-      card.querySelector(".select-check-badge").className =
-        "select-check-badge " + (img.marked ? "select-remove-badge" : "select-inset-badge");
-    }
-  } else {
-    img.selected = !img.selected;
-    img.viewed   = true;
-    if (card) { card.classList.toggle("cell-card--selected", img.selected); card.classList.add("img-viewed"); }
-    scheduleSelectSave();
-  }
+  if (card) { card.classList.toggle("cell-card--selected", img.selected); card.classList.add("img-viewed"); }
   updateSelectStats();
 }
 
 function updateSelectStats() {
-  const { images, destination, mode } = selectState;
+  const { images } = selectState;
+  const sel    = images.filter(i => i.selected).length;
   const total  = images.length;
+  const inSet  = images.filter(i => i.in_set).length;
   const statsEl = document.getElementById("select-stats");
-  if (mode === "review") {
-    const marked = images.filter(i => i.marked).length;
-    if (statsEl) statsEl.textContent = total > 0
-      ? `${total - marked} in set · ${marked} marked for removal`
-      : "Empty set";
-  } else {
-    const sel    = images.filter(i => i.selected).length;
-    const viewed = images.filter(i => i.viewed).length;
-    if (statsEl) statsEl.textContent = total > 0 ? `${sel} selected · ${viewed} viewed · ${total} total` : "";
-    const infoEl = document.getElementById(`${destination}-sel-info`);
-    if (infoEl) {
-      if (sel > 0) { infoEl.textContent = `${sel} marked — click Copy Selections when ready`; infoEl.classList.remove("hidden"); }
-      else           infoEl.classList.add("hidden");
-    }
-  }
-}
-
-function scheduleSelectSave() {
-  if (selectState._saveTimer) clearTimeout(selectState._saveTimer);
-  selectState._saveTimer = setTimeout(saveSelections, 400);
-}
-
-async function saveSelections() {
-  const { analysisId, destination, images } = selectState;
-  if (!analysisId) return;
-  const selected = images.filter(i => i.selected).map(i => i.abs_path);
-  const viewed   = images.filter(i => i.viewed).map(i => i.abs_path);
-  try { await postJSON("/api/select/save", { analysis_id: analysisId, destination, selected, viewed }); }
-  catch (_) { /* non-fatal */ }
-}
-
-async function doCopyToSet(destination) {
-  const analysisId = getSelectedAnalysis("select") || "default";
-  const copyBtn = document.getElementById(`copy-to-${destination}-btn`);
-  const infoEl  = document.getElementById(`${destination}-sel-info`);
-  try { await confirmBtn(copyBtn, "Copy — sure?"); } catch { return; }
-  if (selectState.analysisId === analysisId && selectState.destination === destination) await saveSelections();
-  const origText = copyBtn.textContent;
-  copyBtn.disabled = true; copyBtn.textContent = "Copying…";
-  try {
-    const result = await postJSON("/api/copy-to-set", { analysis_id: analysisId, destination });
-    if (infoEl) {
-      infoEl.textContent = result.copied === 0
-        ? "No selections — use Browse & Select to mark images first."
-        : `Copied ${result.copied} images to ${destination} set.`;
-      infoEl.classList.remove("hidden");
-    }
-    await refreshSetStatus();
-  } catch (e) {
-    if (infoEl) { infoEl.textContent = `Error: ${e.message}`; infoEl.classList.remove("hidden"); }
-  } finally {
-    copyBtn.disabled = false; copyBtn.textContent = origText;
-  }
+  if (statsEl) statsEl.textContent = total > 0 ? `${sel} selected · ${inSet} currently in set · ${total} total` : "";
 }
 
 function renderSingleView() {
@@ -1319,7 +1195,6 @@ function renderSingleView() {
   const strain = document.getElementById("select-single-strain");
   const name   = document.getElementById("select-single-name");
   const toggle = document.getElementById("select-single-toggle");
-  const isReview = selectState.mode === "review";
 
   if (!visible.length) {
     if (imgEl) imgEl.src = "";
@@ -1339,15 +1214,8 @@ function renderSingleView() {
   if (name)   name.textContent = item.filename;
 
   if (toggle) {
-    if (isReview) {
-      toggle.textContent = item.marked ? "✕ Remove" : "Keep in Set";
-      toggle.classList.toggle("select-single-remove", item.marked);
-      toggle.classList.remove("select-single-selected");
-    } else {
-      toggle.textContent = item.selected ? "✓ Selected" : "Mark Selected";
-      toggle.classList.toggle("select-single-selected", item.selected);
-      toggle.classList.remove("select-single-remove");
-    }
+    toggle.textContent = item.selected ? "✓ Selected" : "Mark Selected";
+    toggle.classList.toggle("select-single-selected", item.selected);
     toggle.onclick = () => { toggleSelectImage(globalIdx); renderSingleView(); };
   }
 
@@ -1356,7 +1224,6 @@ function renderSingleView() {
     item.viewed = true;
     const card = document.querySelector(`#select-grid [data-idx="${globalIdx}"]`);
     if (card) card.classList.add("img-viewed");
-    if (!isReview) scheduleSelectSave();
   }
 }
 
@@ -1368,16 +1235,11 @@ function navSingle(delta) {
 }
 
 function initSelectTab() {
-  document.getElementById("analysis-select-select")?.addEventListener("change", async () => {
-    await refreshSetStatus();
-  });
+  document.getElementById("analysis-select-select")?.addEventListener("change", refreshSetStatus);
 
   document.getElementById("browse-curated-btn")?.addEventListener("click",  () => openSelectBrowser("curated"));
   document.getElementById("browse-training-btn")?.addEventListener("click", () => openSelectBrowser("training"));
-  document.getElementById("review-curated-btn")?.addEventListener("click",  () => openReviewBrowser("curated"));
-  document.getElementById("review-training-btn")?.addEventListener("click", () => openReviewBrowser("training"));
-  document.getElementById("copy-to-curated-btn")?.addEventListener("click",  () => doCopyToSet("curated"));
-  document.getElementById("copy-to-training-btn")?.addEventListener("click", () => doCopyToSet("training"));
+
   document.getElementById("use-all-images-btn")?.addEventListener("click", async () => {
     const btn = document.getElementById("use-all-images-btn");
     const infoEl = document.getElementById("curated-sel-info");
@@ -1386,83 +1248,48 @@ function initSelectTab() {
     btn.disabled = true; btn.textContent = "Copying…";
     try {
       const result = await postJSON("/api/use-all-images", { analysis_id: analysisId });
-      if (infoEl) { infoEl.textContent = `Copied ${result.copied} images.`; infoEl.classList.remove("hidden"); }
+      if (infoEl) { infoEl.textContent = `${result.copied} images copied.`; infoEl.classList.remove("hidden"); }
       await refreshSetStatus();
     } catch (e) {
       if (infoEl) { infoEl.textContent = `Error: ${e.message}`; infoEl.classList.remove("hidden"); }
     } finally { btn.disabled = false; btn.textContent = "Use All"; }
   });
 
-  // Modal buttons
   document.getElementById("select-modal-close")?.addEventListener("click", closeSelectBrowser);
-
   document.getElementById("select-view-grid-btn")?.addEventListener("click",   () => setSelectViewMode("grid"));
   document.getElementById("select-view-single-btn")?.addEventListener("click", () => setSelectViewMode("single"));
-
   document.getElementById("select-single-prev")?.addEventListener("click",   () => navSingle(-1));
   document.getElementById("select-single-next")?.addEventListener("click",   () => navSingle(+1));
   document.getElementById("select-single-prev10")?.addEventListener("click", () => navSingle(-10));
   document.getElementById("select-single-next10")?.addEventListener("click", () => navSingle(+10));
 
   document.getElementById("select-all-btn")?.addEventListener("click", () => {
-    const isReview = selectState.mode === "review";
-    visibleSelectImages().forEach(i => {
-      if (isReview) { i.marked = true; } else { i.selected = true; i.viewed = true; }
-    });
-    document.querySelectorAll("#select-grid .img-select-card").forEach(c => {
-      if (isReview) {
-        c.classList.add("cell-card--remove", "img-viewed");
-        c.classList.remove("cell-card--in-set");
-        const badge = c.querySelector(".select-check-badge");
-        if (badge) { badge.textContent = "✕"; badge.className = "select-check-badge select-remove-badge"; }
-      } else {
-        c.classList.add("cell-card--selected", "img-viewed");
-      }
-    });
+    visibleSelectImages().forEach(i => { i.selected = true; i.viewed = true; });
+    document.querySelectorAll("#select-grid .img-select-card").forEach(c => c.classList.add("cell-card--selected", "img-viewed"));
     if (selectState.viewMode === "single") renderSingleView();
     updateSelectStats();
-    if (!isReview) scheduleSelectSave();
   });
-
   document.getElementById("select-deselect-all-btn")?.addEventListener("click", () => {
-    const isReview = selectState.mode === "review";
-    visibleSelectImages().forEach(i => {
-      if (isReview) { i.marked = false; } else { i.selected = false; }
-    });
-    document.querySelectorAll("#select-grid .img-select-card").forEach(c => {
-      if (isReview) {
-        c.classList.remove("cell-card--remove");
-        c.classList.add("cell-card--in-set");
-        const badge = c.querySelector(".select-check-badge");
-        if (badge) { badge.textContent = "✓"; badge.className = "select-check-badge select-inset-badge"; }
-      } else {
-        c.classList.remove("cell-card--selected");
-      }
-    });
+    visibleSelectImages().forEach(i => { i.selected = false; });
+    document.querySelectorAll("#select-grid .img-select-card").forEach(c => c.classList.remove("cell-card--selected"));
     if (selectState.viewMode === "single") renderSingleView();
     updateSelectStats();
-    if (!isReview) scheduleSelectSave();
   });
 
-  // Keyboard: works on modal in both grid and single view
   document.getElementById("select-modal")?.addEventListener("keydown", e => {
     if (document.getElementById("select-modal")?.classList.contains("hidden")) return;
-    const viewMode = selectState.viewMode;
-
     if (e.code === "Escape") { closeSelectBrowser(); return; }
 
-    if (viewMode === "single") {
+    if (selectState.viewMode === "single") {
       const visible = visibleSelectImages();
       if (!visible.length) return;
-      const shift = e.shiftKey;
-      if      (e.code === "ArrowRight" || e.code === "ArrowDown")  { e.preventDefault(); navSingle(shift ? +10 : +1); }
-      else if (e.code === "ArrowLeft"  || e.code === "ArrowUp")    { e.preventDefault(); navSingle(shift ? -10 : -1); }
+      if      (e.code === "ArrowRight" || e.code === "ArrowDown") { e.preventDefault(); navSingle(e.shiftKey ? +10 : +1); }
+      else if (e.code === "ArrowLeft"  || e.code === "ArrowUp")   { e.preventDefault(); navSingle(e.shiftKey ? -10 : -1); }
       else if (e.code === "Space") {
         e.preventDefault();
         const item = visible[selectState.singleIdx];
         if (item) { toggleSelectImage(selectState.images.indexOf(item)); renderSingleView(); }
-      }
-      else if (e.code === "KeyJ" && selectState.mode === "select") {
+      } else if (e.code === "KeyJ") {
         e.preventDefault();
         const first = visible.findIndex(i => !i.viewed);
         selectState.singleIdx = first === -1 ? 0 : first;
@@ -1471,21 +1298,18 @@ function initSelectTab() {
       return;
     }
 
-    // Grid view keyboard nav
+    // Grid keyboard nav
     const cards  = [...document.querySelectorAll("#select-grid .img-select-card")];
     const active = document.activeElement?.closest(".img-select-card");
     let visIdx   = active ? cards.indexOf(active) : -1;
-
     if      (e.code === "ArrowRight") { visIdx = Math.min(visIdx + 1, cards.length - 1); e.preventDefault(); }
     else if (e.code === "ArrowLeft")  { visIdx = Math.max(visIdx - 1, 0);                e.preventDefault(); }
     else if (e.code === "Space" && visIdx >= 0) { e.preventDefault(); toggleSelectImage(+cards[visIdx].dataset.idx); return; }
-    else if (e.code === "KeyJ" && selectState.mode === "select") {
-      const visible = visibleSelectImages();
-      const first = visible.findIndex(i => !i.viewed);
+    else if (e.code === "KeyJ") {
+      const first = visibleSelectImages().findIndex(i => !i.viewed);
       visIdx = first === -1 ? 0 : first;
       e.preventDefault();
     } else { return; }
-
     if (cards[visIdx]) { cards[visIdx].focus(); cards[visIdx].scrollIntoView({ block: "nearest" }); }
   });
 }
