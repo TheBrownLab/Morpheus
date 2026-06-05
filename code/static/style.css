@@ -760,6 +760,28 @@ select {
 /* ── Detail rows ──────────────────────────────────────────────────────────── */
 .detail-rows { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-mid); }
 
+.measure-strains-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.measure-strains-table th {
+  text-align: left;
+  padding: 4px 8px;
+  color: var(--text-dim);
+  font-weight: 500;
+  border-bottom: 1px solid var(--stone-border);
+}
+.measure-strains-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--stone-mortar);
+  vertical-align: middle;
+}
+.measure-strains-table tr:last-child td { border-bottom: none; }
+.measure-strains-table tr.measure-strain-row--empty td { opacity: 0.45; }
+.measure-strain-count { color: var(--text-mid); min-width: 80px; }
+.measure-strain-sel { font-size: 11px; padding: 2px 4px; min-width: 160px; }
+
 /* ── Analysis card ────────────────────────────────────────────────────────── */
 .analysis-card {
   background: var(--stone-deep);

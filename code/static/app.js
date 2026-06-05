@@ -1494,7 +1494,7 @@ function onMeasureTabLoad() {
   updateMeasureAnalysisSummary();
 }
 
-function updateMeasureAnalysisSummary() {
+async function updateMeasureAnalysisSummary() {
   const analysisId = getSelectedAnalysis("measure");
   const summaryDiv = document.getElementById("measure-analysis-summary");
   const detailDiv  = document.getElementById("measure-analysis-detail");
@@ -1515,15 +1515,59 @@ function updateMeasureAnalysisSummary() {
   if (noAnalysis) noAnalysis.classList.add("hidden");
   if (startBtn) startBtn.disabled = false;
 
-  if (detailDiv) {
-    const modelName = analysis.model_path ? analysis.model_path.split("/").pop() : "—";
-    detailDiv.innerHTML = `
-      <div>Model: <span class="text-gray-200">${modelName}</span></div>
-      <div>Min area: <span class="text-gray-200">${analysis.min_area} px²</span> · Max area: <span class="text-gray-200">${analysis.max_area} px²</span></div>
-      <div>Diameter: <span class="text-gray-200">${analysis.diameter ?? "auto"} px</span> · Pixel size: <span class="text-gray-200">${analysis.pixel_size_um ?? "—"} µm/px</span></div>
-      <div>Measurements: <span class="text-gray-200">${(analysis.measurements || []).join(", ")}</span></div>
+  if (!detailDiv) return;
+
+  // Fetch curated image counts for this analysis
+  let curatedCounts = {};
+  try {
+    const status = await apiJSON(`/api/set-status?analysis_id=${encodedPath(analysisId)}`);
+    curatedCounts = status.curated || {};
+  } catch {}
+
+  const defaultModelName = analysis.model_path ? analysis.model_path.split("/").pop() : "—";
+  const strainModels = analysis.strain_models || {};
+  const strains = state.config.strains || [];
+  const models = Array.from(document.getElementById("new-analysis-model")?.options || [])
+    .filter(o => o.value).map(o => ({ path: o.value, name: o.textContent.trim() }));
+
+  const strainRows = strains.map(s => {
+    const count = curatedCounts[s.name] ?? 0;
+    const override = strainModels[s.name] || "";
+    const opts = models.map(m =>
+      `<option value="${m.path}" ${override === m.path ? "selected" : ""}>${m.name}</option>`
+    ).join("");
+    return `
+      <tr class="${count === 0 ? "measure-strain-row--empty" : ""}">
+        <td><span class="chip" style="background:${s.color ?? "#555"}">${s.name}</span></td>
+        <td class="measure-strain-count">${count > 0 ? count + " images" : '<span class="text-dim">—</span>'}</td>
+        <td>
+          <select class="strain-model-select measure-strain-sel" data-strain="${s.name}">
+            <option value="">Default (${defaultModelName})</option>
+            ${opts}
+          </select>
+        </td>
+      </tr>
     `;
-  }
+  }).join("");
+
+  detailDiv.innerHTML = `
+    <div class="detail-rows" style="margin-bottom:10px">
+      <div>Default model: <strong>${defaultModelName}</strong></div>
+      <div>Cell size: min ${analysis.min_area} · max ${analysis.max_area} px² · ⌀ ${analysis.diameter ?? "auto"}</div>
+      <div>Pixel size: ${analysis.pixel_size_um ?? "—"} µm/px</div>
+      <div>Measurements: ${(analysis.measurements || []).join(", ")}</div>
+    </div>
+    ${strains.length ? `
+      <table class="measure-strains-table">
+        <thead><tr><th>Strain</th><th>Curated images</th><th>Model</th></tr></thead>
+        <tbody>${strainRows}</tbody>
+      </table>
+    ` : ""}
+  `;
+
+  detailDiv.querySelectorAll(".measure-strain-sel").forEach(sel => {
+    sel.addEventListener("change", () => saveStrainModels(detailDiv, analysis));
+  });
 }
 
 function initMeasureTab() {
