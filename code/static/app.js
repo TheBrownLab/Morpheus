@@ -1649,6 +1649,32 @@ async function onCurateTabLoad() {
     else if (e.code === "ArrowLeft")  { e.preventDefault(); navigateImageView(-1); }
   });
 
+  // Click on canvas bbox to select/deselect a cell
+  document.getElementById("image-view-canvas")?.addEventListener("click", e => {
+    if (!_imageViewImgData) return;
+    const canvas = e.currentTarget;
+    const rect   = canvas.getBoundingClientRect();
+    // Map display coordinates → canvas pixel coordinates
+    const mx = (e.clientX - rect.left)  * (canvas.width  / rect.width);
+    const my = (e.clientY - rect.top)   * (canvas.height / rect.height);
+    // Find the topmost (last-drawn) cell whose bbox contains the click
+    const cells = _imageViewImgData.cells;
+    let hit = null;
+    for (let i = cells.length - 1; i >= 0; i--) {
+      const cell = cells[i];
+      if (!cell.bbox) continue;
+      const [r1, c1, r2, c2] = cell.bbox;
+      if (mx >= c1 && mx <= c2 && my >= r1 && my <= r2) { hit = cell; break; }
+    }
+    if (!hit) return;
+    const key = cellKey(hit);
+    if (curateState.selected.has(key)) curateState.selected.delete(key);
+    else curateState.selected.add(key);
+    refreshSelection();
+    redrawImageViewCanvas();
+    renderImageCellSidebar(_imageViewImgData.cells);
+  });
+
   initResizeHandles();
   initDragSelect();
 
@@ -2358,12 +2384,22 @@ function redrawImageViewCanvas() {
     ctx.beginPath(); ctx.arc(cx, cy, lw * 2, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.fill();
 
-    // Cell ID label
-    ctx.font = `${fs}px monospace`;
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillText(cell.cell_id, c1+2, r1+fs+1);
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillText(cell.cell_id, c1+1, r1+fs);
+    // Cell ID label — colored by morphotype, dark background pill for visibility
+    const morph = curateState.morphotypes.find(m => m.id === cell.morphotype);
+    const labelColor = morph ? morph.color
+      : cell.morphotype === "accepted" ? "#4ade80"
+      : cell.morphotype === "rejected" ? "#ff5555"
+      : "#dddddd";
+    const label = String(cell.cell_id);
+    ctx.font = `bold ${fs}px monospace`;
+    const tw  = ctx.measureText(label).width;
+    const pad = lw * 2;
+    const lx  = c1 + lw;
+    const ly  = r1 + lw;
+    ctx.fillStyle = "rgba(0,0,0,0.65)";
+    ctx.fillRect(lx - pad, ly, tw + pad * 2, fs + pad);
+    ctx.fillStyle = labelColor;
+    ctx.fillText(label, lx, ly + fs);
   });
 }
 

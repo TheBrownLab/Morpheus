@@ -1672,7 +1672,7 @@ select {
   max-width: 100%;
   max-height: calc(100vh - 160px);
   object-fit: contain; /* respected for rendering but canvas fills own pixel space */
-  cursor: default;
+  cursor: crosshair;
 }
 
 /* Image view cell sidebar */
