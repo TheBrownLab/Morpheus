@@ -2264,6 +2264,7 @@ function renderResultsCharts(cells) {
     { key: "solidity",       canvasId: "canvas-solidity",  label: "Solidity" },
   ];
 
+  const cc = getChartColors();
   const chartDefaults = {
     responsive: true,
     maintainAspectRatio: false,
@@ -2271,24 +2272,24 @@ function renderResultsCharts(cells) {
     plugins: {
       legend: {
         labels: {
-          color: "#a8926a",
+          color: cc.textMid,
           font: { family: "'Share Tech Mono', monospace", size: 11 },
           boxWidth: 12,
           filter: (item) => !item.text.endsWith(" mean"),
         }
       },
       tooltip: {
-        backgroundColor: "#1e1b17",
-        borderColor: "#4a4238",
+        backgroundColor: cc.stoneMid,
+        borderColor: cc.stoneBorder,
         borderWidth: 1,
-        titleColor: "#e8d8a8",
-        bodyColor: "#a8926a",
+        titleColor: cc.textBright,
+        bodyColor: cc.textMid,
         callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(3) ?? ctx.parsed.x?.toFixed(3) ?? ""}` }
       }
     },
     scales: {
-      x: { ticks: { color: "#6a5840" }, grid: { color: "rgba(74,66,56,0.4)" } },
-      y: { ticks: { color: "#6a5840" }, grid: { color: "rgba(74,66,56,0.4)" } },
+      x: { ticks: { color: cc.textDim }, grid: { color: cc.stoneBorder + "55" } },
+      y: { ticks: { color: cc.textDim }, grid: { color: cc.stoneBorder + "55" } },
     }
   };
 
@@ -2377,8 +2378,8 @@ function renderResultsCharts(cells) {
       options: {
         ...chartDefaults,
         scales: {
-          x: { ...chartDefaults.scales.x, title: { display: true, text: "Length (µm)", color: "#6a5840" } },
-          y: { ...chartDefaults.scales.y, title: { display: true, text: "Breadth (µm)", color: "#6a5840" } },
+          x: { ...chartDefaults.scales.x, title: { display: true, text: "Length (µm)", color: cc.textDim } },
+          y: { ...chartDefaults.scales.y, title: { display: true, text: "Breadth (µm)", color: cc.textDim } },
         }
       }
     });
@@ -2419,6 +2420,51 @@ function initResultsTab() {
     } finally {
       btn.disabled = false; btn.textContent = "Build Excel";
     }
+  });
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
+function _cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function getChartColors() {
+  return {
+    textMid:     _cssVar("--text-mid")     || "#a8926a",
+    textDim:     _cssVar("--text-dim")     || "#6a5840",
+    textBright:  _cssVar("--text-bright")  || "#e8d8a8",
+    stoneMid:    _cssVar("--stone-mid")    || "#28241e",
+    stoneBorder: _cssVar("--stone-border") || "#4a4238",
+    stoneVoid:   _cssVar("--stone-void")   || "#0e0c0a",
+  };
+}
+
+function _updateThemeBtn(theme) {
+  const btn = document.getElementById("theme-toggle-btn");
+  if (!btn) return;
+  btn.textContent = theme === "dark" ? "☀" : "☾";
+  btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+}
+
+function initTheme() {
+  function _apply(theme) {
+    document.documentElement.dataset.theme = theme;
+    _updateThemeBtn(theme);
+  }
+  const saved = localStorage.getItem("morpheus-theme");
+  _apply(saved || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
+
+  window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", e => {
+    if (!localStorage.getItem("morpheus-theme"))
+      _apply(e.matches ? "light" : "dark");
+  });
+
+  document.getElementById("theme-toggle-btn")?.addEventListener("click", () => {
+    const next = (document.documentElement.dataset.theme || "dark") === "dark" ? "light" : "dark";
+    localStorage.setItem("morpheus-theme", next);
+    _apply(next);
+    if (Object.keys(_charts).length) loadResults();
   });
 }
 
@@ -2485,6 +2531,7 @@ function renderTestDataActions(status) {
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function init() {
+  initTheme();
   initTabs();
   initObjectives();
   initSetupTab();

@@ -2,6 +2,15 @@
 /* Press Start 2P: pixel title only | Cinzel: fantasy headers | Crimson Pro: body | Share Tech Mono: code */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Share+Tech+Mono&display=swap');
 
+/* µ / μ override — Cinzel lacks the micro symbol; pull it from a system sans font.
+   unicode-range means this only fires for U+00B5 (µ) and U+03BC (μ) — all other
+   characters still come from whatever font is listed next in the stack. */
+@font-face {
+  font-family: 'MuFix';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica');
+  unicode-range: U+00B5, U+03BC;
+}
+
 /* ── Variables ────────────────────────────────────────────────────────────── */
 :root {
   /* Wood palette */
@@ -43,9 +52,13 @@
   --moss-glow:    rgba(74,104,48,0.25);
 
   /* Danger */
-  --danger:       #6a1818;
-  --danger-hi:    #8a2828;
-  --danger-text:  #e09080;
+  --danger:        #6a1818;
+  --danger-hi:     #8a2828;
+  --danger-text:   #e09080;
+  --danger-border: #3a0808;
+
+  /* Log terminal text */
+  --log-color: #90c060;
 
   /* Accents for train steps */
   --step-green:   #3a5828;
@@ -55,8 +68,8 @@
 
   --sidebar-w:    194px;
   --font-pixel:   'Press Start 2P', monospace;
-  --font-head:    'Cinzel', serif;
-  --font-body:    'Crimson Pro', Georgia, serif;
+  --font-head:    'MuFix', 'Cinzel', serif;
+  --font-body:    'MuFix', 'Crimson Pro', Georgia, serif;
   --font-mono:    'Share Tech Mono', monospace;
 
   /* Pixel art: no rounding */
@@ -206,7 +219,8 @@ strong { font-weight: 500; color: var(--text-bright); }
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 0;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 /* Pixel wordmark — Press Start 2P */
@@ -593,7 +607,7 @@ select {
 .btn-danger {
   background: var(--danger);
   color: var(--danger-text);
-  border-color: #3a0808;
+  border-color: var(--danger-border);
 }
 .btn-danger:hover { background: var(--danger-hi); }
 .btn-danger:active { box-shadow: none; transform: translate(1px,1px); }
@@ -732,7 +746,7 @@ select {
   padding: 8px 10px;
   font-family: var(--font-mono);
   font-size: 10px;
-  color: #90c060;
+  color: var(--log-color);
   line-height: 1.65;
   resize: none;
   overflow-y: auto;
@@ -1636,4 +1650,85 @@ select {
   border: 1px solid rgba(80,200,255,0.3);
   background: rgba(80,200,255,0.07);
   white-space: nowrap;
+}
+
+/* ── Theme toggle button ──────────────────────────────────────────────────── */
+/* Lives in the dark sidebar in both modes, so uses wood vars (always dark). */
+.theme-toggle-btn {
+  background: none;
+  border: 1px solid var(--wood-border);
+  color: var(--wood-hi);
+  cursor: pointer;
+  padding: 3px 7px;
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.theme-toggle-btn:hover {
+  background: var(--wood-mid);
+  color: var(--gold-hi);
+  border-color: var(--gold-hi);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* LIGHT MODE                                                                  */
+/* Applied when data-theme="light" is set on <html>. JS detects system pref   */
+/* and sets it automatically; users can toggle manually (stored in             */
+/* localStorage as "morpheus-theme").                                          */
+/* ══════════════════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+
+  /* Stone / main content — warm parchment & ivory */
+  --stone-void:   #d4c9b4;
+  --stone-deep:   #e8e0cc;
+  --stone-dark:   #f2ede0;
+  --stone-mid:    #faf7f0;
+  --stone-raised: #ede8da;
+  --stone-border: #c4b898;
+  --stone-hi:     #a89878;
+  --stone-mortar: #ddd4c0;
+
+  /* Wood — keep dark so the sidebar stays high-contrast in both modes.
+     Slightly warmer/lighter than dark-mode values so it's still wood, not pitch black. */
+  --wood-void:    #2a1c08;
+  --wood-deep:    #362210;
+  --wood-dark:    #3e2a14;
+  --wood-mid:     #503618;
+  --wood-border:  #6e4c26;
+  --wood-hi:      #8e6836;
+  --wood-grain:   rgba(255,210,120,0.07);
+
+  /* Text — dark warm brown, readable on parchment */
+  --text-bright:  #1e1408;
+  --text-mid:     #5a4428;
+  --text-dim:     #8a7050;
+  --text-dimmer:  #b8a880;
+  --text-code:    #2e5c10;
+
+  /* Gold — darker to read on light backgrounds */
+  --gold:         #7a5c10;
+  --gold-hi:      #9a7418;
+  --gold-dim:     rgba(122,92,16,0.12);
+  --gold-edge:    rgba(122,92,16,0.35);
+
+  /* Moss — keep same; dark green is fine on light bg */
+  --moss:         #3a5820;
+  --moss-hi:      #4e7030;
+  --moss-glow:    rgba(58,88,32,0.2);
+
+  /* Step accents — slightly deeper for parchment bg */
+  --step-green:   #2a4a18;
+  --step-blue:    #163258;
+  --step-purple:  #2c1a50;
+  --step-amber:   #4a3008;
+
+  /* Danger */
+  --danger:        #7a1818;
+  --danger-hi:     #9a2828;
+  --danger-text:   #b02020;
+  --danger-border: #520808;
+
+  /* Log terminal text — dark green on parchment */
+  --log-color: #2a5810;
 }
