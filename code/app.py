@@ -59,6 +59,14 @@ CONFIG_FILE         = REPO_DIR / "config.json"
 CURATION_STATE_FILE = REPO_DIR / "curation_state.json"
 
 IMAGE_EXTENSIONS = {".tif", ".tiff", ".jpg", ".jpeg", ".png"}
+LFS_HEADER = b"version https://git-lfs.github.com"
+
+def _is_lfs_pointer(path: Path) -> bool:
+    """Return True if file is an undownloaded Git LFS pointer."""
+    try:
+        return path.read_bytes()[:40].startswith(LFS_HEADER)
+    except OSError:
+        return False
 
 # In-memory caches — keyed by (analysis_id, seg_path) to avoid cross-analysis collisions
 _mask_cache: dict[str, np.ndarray] = {}
@@ -226,7 +234,7 @@ async def api_env_install_start(body: dict):
             raise HTTPException(status_code=400, detail="conda/mamba not found — use pip install or install Miniconda first")
         if env_yml.exists():
             # Preferred: create from environment.yml
-            cmd = [conda, "env", "create", "-f", str(env_yml), "--force"]
+            cmd = [conda, "env", "create", "-f", str(env_yml), "--yes"]
         else:
             # Fallback: install packages directly
             cmd = [conda, "create", "-n", env_name, "-c", "conda-forge",
@@ -280,13 +288,17 @@ async def api_env_install_events(job_id: str):
             proc.wait()
 
             if proc.returncode == 0:
-                # Try to find the new python and save it
+                # Save the python path so env status check finds the right one
                 if job.get("method") == "conda":
                     new_py = get_pipeline_python()
                     if new_py != sys.executable:
                         cfg = get_config()
                         cfg["python_path"] = new_py
                         save_config(cfg)
+                elif job.get("method") == "pip":
+                    cfg = get_config()
+                    cfg["python_path"] = sys.executable
+                    save_config(cfg)
                 job["status"] = "done"
                 yield _send({"status": "done",
                              "message": "Installation complete. Reload the page to re-check environment."})
@@ -916,10 +928,12 @@ def api_training_strains():
             if f.suffix.lower() in IMAGE_EXTENSIONS
         )
         if images:
+            lfs_count = sum(1 for f in images if _is_lfs_pointer(f))
             strains.append({
                 "name": strain_dir.name,
                 "count": len(images),
                 "first_image": str(images[0]),
+                "lfs_pointers": lfs_count,
             })
     return strains
 
@@ -987,6 +1001,12 @@ def api_launch_cellpose_gui(body: dict = {}):
         env["QT_QPA_PLATFORM_PLUGIN_PATH"] = plugin_path
     else:
         env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
+
+    if image_path and _is_lfs_pointer(Path(image_path)):
+        raise HTTPException(
+            status_code=422,
+            detail="Image is a Git LFS pointer — run 'git lfs pull' in the repo to download the actual files",
+        )
 
     # Launch via gui.run(image=...) in a subprocess so the image loads on startup
     image_arg = f", image={repr(str(image_path))}" if image_path else ""
@@ -1654,10 +1674,7 @@ def api_curation_file(path: str = Query(...), thumb: bool = Query(False)):
             p.relative_to(DATA_DIR)
         except ValueError:
             raise HTTPException(status_code=403, detail="Forbidden")
-    # Detect Git LFS pointer files (not yet downloaded) — they start with this header
-    # and are ~130 bytes. Reading the actual image would fail with a confusing error.
-    header = p.read_bytes()[:40]
-    if header.startswith(b"version https://git-lfs.github.com"):
+    if _is_lfs_pointer(p):
         raise HTTPException(
             status_code=422,
             detail="Git LFS file not downloaded — run 'git lfs pull' in the repo to fetch large files",
@@ -1799,10 +1816,29 @@ def api_test_data_status():
             n_cells = sum(len(img.get("cells", [])) for img in data)
         except Exception:
             pass
+
+    # Count LFS pointers in the committed test data directories
+    lfs_dirs = [
+        CURATED_DIR / "nolandella_test",
+        INPUT_DIR / "Nolandella",
+    ]
+    lfs_total = lfs_pointers = 0
+    for d in lfs_dirs:
+        if not d.exists():
+            continue
+        for f in d.rglob("*"):
+            if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
+                lfs_total += 1
+                if _is_lfs_pointer(f):
+                    lfs_pointers += 1
+
     return {
         "active": has_strain and has_analysis and has_measurements,
         "has_files": has_files,
         "n_cells": n_cells,
+        "lfs_total": lfs_total,
+        "lfs_pointers": lfs_pointers,
+        "lfs_ok": lfs_total > 0 and lfs_pointers == 0,
     }
 
 

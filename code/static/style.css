@@ -658,6 +658,13 @@ select {
 /* ── Status / info ────────────────────────────────────────────────────────── */
 .status-line { font-family: var(--font-mono); font-size: 11px; color: var(--text-mid); }
 .inline-status { font-size: 12px; color: var(--text-mid); }
+
+.lfs-row { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12px; color: var(--text-mid); }
+.lfs-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }
+.lfs-dot--ok   { background: #50c040; box-shadow: 0 0 5px rgba(80,192,64,0.5); }
+.lfs-dot--warn { background: #c0a040; box-shadow: 0 0 5px rgba(192,160,64,0.4); }
+.lfs-label { line-height: 1.4; }
+.lfs-label code { font-family: monospace; background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 3px; }
 .warn-text { font-size: 12px; color: #a07828; font-style: italic; }
 
 /* ── Set status (strain image counts) ────────────────────────────────────── */

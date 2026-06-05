@@ -1368,10 +1368,18 @@ async function refreshTrainingStrainButtons() {
       return;
     }
     container.innerHTML = "";
+    const totalLfs = strains.reduce((n, s) => n + (s.lfs_pointers || 0), 0);
+    if (totalLfs > 0) {
+      const warn = document.createElement("p");
+      warn.className = "text-amber-400 text-xs mb-2";
+      warn.textContent = `${totalLfs} image${totalLfs !== 1 ? "s are" : " is"} Git LFS pointer${totalLfs !== 1 ? "s" : ""} and haven't been downloaded — run 'git lfs pull' in the repo, then reload.`;
+      container.appendChild(warn);
+    }
     strains.forEach(s => {
       const btn = document.createElement("button");
       btn.className = "btn-primary btn-sm cellpose-strain-btn";
-      btn.innerHTML = `<span class="strain-btn-name">${s.name}</span><span class="strain-btn-count">${s.count} images</span>`;
+      const lfsNote = s.lfs_pointers ? ` (${s.lfs_pointers} not downloaded)` : "";
+      btn.innerHTML = `<span class="strain-btn-name">${s.name}</span><span class="strain-btn-count">${s.count} images${lfsNote}</span>`;
       btn.title = `Opens: ${s.first_image}`;
       btn.addEventListener("click", () => launchCellposeForStrain(s.name, s.first_image, btn));
       container.appendChild(btn);
@@ -2810,9 +2818,26 @@ async function loadTestDataStatus() {
   }
 }
 
+function renderLfsIndicator(status) {
+  const el = document.getElementById("test-data-lfs");
+  if (!el) return;
+  if (status.lfs_total === 0) {
+    // Files not present yet — can't check
+    el.classList.add("hidden");
+    return;
+  }
+  el.classList.remove("hidden");
+  if (status.lfs_ok) {
+    el.innerHTML = `<span class="lfs-dot lfs-dot--ok"></span><span class="lfs-label">LFS files downloaded (${status.lfs_total} images)</span>`;
+  } else {
+    el.innerHTML = `<span class="lfs-dot lfs-dot--warn"></span><span class="lfs-label">${status.lfs_pointers} of ${status.lfs_total} images are undownloaded LFS pointers — run <code>git lfs pull</code> in the repo</span>`;
+  }
+}
+
 function renderTestDataActions(status) {
   const el = document.getElementById("test-data-actions");
   if (!el) return;
+  renderLfsIndicator(status);
   if (status.active) {
     el.innerHTML = `
       <span class="chip">${status.n_cells} cells</span>
