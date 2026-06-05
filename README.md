@@ -18,7 +18,7 @@ You need **Conda** or **Mamba** installed. Mamba resolves environments much fast
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-org>/morpheus.git
+git clone https://github.com/TheBrownLab/morpheus.git
 cd morpheus
 ```
 
