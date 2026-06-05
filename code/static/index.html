@@ -303,6 +303,7 @@
           <div id="curated-set-status" class="status-line">—</div>
           <div class="action-row">
             <button id="browse-curated-btn" class="btn-primary btn-sm">Browse &amp; Select</button>
+            <button id="review-curated-btn" class="btn-secondary btn-sm">Review Set</button>
             <button id="copy-to-curated-btn" class="btn-secondary btn-sm">Copy Selections</button>
             <button id="use-all-images-btn" class="btn-secondary btn-sm">Use All</button>
           </div>
@@ -315,6 +316,7 @@
         <p class="card-desc">Select images for drawing Cellpose masks and training a custom model. Copies into <code>data/training/&lt;strain&gt;/</code>.</p>
         <div class="action-row">
           <button id="browse-training-btn" class="btn-primary btn-sm">Browse &amp; Select</button>
+          <button id="review-training-btn" class="btn-secondary btn-sm">Review Set</button>
           <button id="copy-to-training-btn" class="btn-secondary btn-sm">Copy Selections</button>
         </div>
         <div id="training-sel-info" class="inline-status hidden"></div>
@@ -667,8 +669,10 @@
   <!-- ── Full-screen image selection browser (shared by curated & training) ── -->
   <div id="select-modal" class="select-modal hidden" role="dialog" aria-modal="true">
 
-    <!-- Top bar: strain tabs · stats · view toggle · actions -->
+    <!-- Top bar: mode label · strain tabs · stats · view toggle · actions -->
     <div class="select-modal-bar">
+      <span id="select-modal-title" class="select-modal-title"></span>
+      <span class="toolbar-sep"></span>
       <div class="select-modal-strains" id="select-modal-strains"></div>
       <div style="flex:1;min-width:8px"></div>
       <span id="select-stats" class="select-modal-stats"></span>
@@ -689,7 +693,10 @@
 
     <!-- Single image view -->
     <div id="select-modal-single-view" class="select-modal-content select-modal-single hidden">
-      <button class="select-single-nav" id="select-single-prev" title="Previous (←)">‹</button>
+      <div class="select-single-nav-col">
+        <button class="select-single-nav" id="select-single-prev10" title="Back 10 (Shift+←)">«</button>
+        <button class="select-single-nav select-single-nav--main" id="select-single-prev" title="Previous (←)">‹</button>
+      </div>
       <div class="select-single-stage">
         <div class="select-single-img-wrap">
           <img id="select-single-img" src="" alt="">
@@ -702,7 +709,10 @@
           <button id="select-single-toggle" class="btn-lg select-single-toggle-btn">Mark Selected</button>
         </div>
       </div>
-      <button class="select-single-nav" id="select-single-next" title="Next (→)">›</button>
+      <div class="select-single-nav-col">
+        <button class="select-single-nav select-single-nav--main" id="select-single-next" title="Next (→)">›</button>
+        <button class="select-single-nav" id="select-single-next10" title="Forward 10 (Shift+→)">»</button>
+      </div>
     </div>
 
   </div>

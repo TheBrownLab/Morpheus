@@ -1398,13 +1398,20 @@ select {
 }
 .select-modal-single.hidden { display: none; }
 
-.select-single-nav {
+/* Nav column: stacks skip-10 and single-step arrows vertically */
+.select-single-nav-col {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
-  width: 56px;
+  width: 52px;
+}
+
+.select-single-nav {
+  flex: 1;
   background: none;
   border: none;
   color: var(--text-dim);
-  font-size: 40px;
+  font-size: 36px;
   line-height: 1;
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
@@ -1412,6 +1419,7 @@ select {
   align-items: center;
   justify-content: center;
 }
+.select-single-nav--main { font-size: 46px; flex: 2; }
 .select-single-nav:hover { color: var(--text-bright); background: var(--stone-raised); }
 
 .select-single-stage {
@@ -1462,6 +1470,28 @@ select {
 }
 .select-single-toggle-btn:hover { background: var(--moss); color: #f0ecd8; border-color: var(--moss-hi); }
 .select-single-toggle-btn.select-single-selected { background: var(--moss); color: #f0ecd8; border-color: var(--moss-hi); }
+.select-single-toggle-btn.select-single-remove   { background: var(--danger); color: #f0ecd8; border-color: var(--danger-hi, #c0392b); }
+
+/* Modal title — shows current mode */
+.select-modal-title {
+  font-family: var(--font-head);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold-hi);
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.select-modal-title--review { color: var(--danger-hi, #e05c5c); }
+
+/* Review mode: cards in set show a green "in set" badge always; marked-for-removal show red */
+.cell-card--in-set  { outline: 2px solid var(--moss);   outline-offset: 1px; }
+.cell-card--remove  { outline: 2px solid var(--danger);  outline-offset: 1px; opacity: 0.6; }
+.cell-card--in-set  .select-check-badge { display: flex; }
+.cell-card--remove  .select-check-badge { display: flex; }
+
+.select-inset-badge  { background: var(--moss);   color: #f0ecd8; border-color: var(--moss-hi); }
+.select-remove-badge { background: var(--danger);  color: #f0ecd8; border-color: var(--danger); }
 
 /* Strain filter tabs */
 .strain-tab-btn {

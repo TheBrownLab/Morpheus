@@ -860,6 +860,73 @@ async def api_select_save(body: dict):
     return {"ok": True, "path": str(sel_file), "count": len(selected)}
 
 
+@app.get("/api/set/images")
+def api_set_images(analysis_id: str = Query(...), destination: str = Query("curated")):
+    """List images currently in the curated or training set directory."""
+    if destination == "training":
+        root = TRAINING_DIR
+    else:
+        root = CURATED_DIR / analysis_id
+
+    images = []
+    if root.exists():
+        for f in sorted(root.rglob("*")):
+            if f.suffix.lower() not in IMAGE_EXTENSIONS:
+                continue
+            # Determine strain from parent dir name relative to root
+            try:
+                rel = f.relative_to(root)
+                strain = rel.parts[0] if len(rel.parts) > 1 else ""
+            except ValueError:
+                strain = f.parent.name
+            abs_str = str(f.resolve())
+            seg_path = f.parent / (f.stem + "_seg.npy")
+            images.append({
+                "abs_path": abs_str,
+                "strain":   strain,
+                "filename": f.name,
+                "has_mask": seg_path.exists(),
+            })
+    return {"images": images, "total": len(images), "destination": destination}
+
+
+@app.post("/api/set/remove")
+async def api_set_remove(body: dict):
+    """Remove images (and their masks) from the curated or training set."""
+    analysis_id = body.get("analysis_id", "default")
+    destination = body.get("destination", "curated")
+    paths       = body.get("paths", [])   # list of absolute paths
+
+    if destination == "training":
+        root = TRAINING_DIR
+    else:
+        root = CURATED_DIR / analysis_id
+
+    removed, errors = 0, []
+    for p_str in paths:
+        p = Path(p_str)
+        # Safety: must be under the expected set directory
+        try:
+            p.relative_to(root)
+        except ValueError:
+            errors.append({"path": p_str, "error": "outside set directory"})
+            continue
+        if not p.exists():
+            errors.append({"path": p_str, "error": "not found"})
+            continue
+        try:
+            p.unlink()
+            removed += 1
+            # Remove companion mask file if present
+            seg = p.parent / (p.stem + "_seg.npy")
+            if seg.exists():
+                seg.unlink()
+        except Exception as e:
+            errors.append({"path": p_str, "error": str(e)})
+
+    return {"removed": removed, "errors": errors}
+
+
 @app.get("/api/set-status")
 def api_set_status(analysis_id: str = Query(default="default")):
     """Return image counts in data/input/ and data/curated/<analysis_id>/ per strain."""

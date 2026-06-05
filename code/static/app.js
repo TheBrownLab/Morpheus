@@ -989,7 +989,8 @@ function initSetupTab() {
 const selectState = {
   analysisId:   null,
   destination:  "curated",
-  images:       [],    // [{path, abs_path, strain, filename, selected, viewed}]
+  mode:         "select",  // "select" | "review"
+  images:       [],    // [{path, abs_path, strain, filename, selected, viewed, marked}]
   strainFilter: "all",
   viewMode:     "grid",   // "grid" | "single"
   singleIdx:    0,        // index within visibleSelectImages()
@@ -1022,26 +1023,72 @@ function renderSetStatus(elId, counts) {
   ).join("");
 }
 
-// Open full-screen modal, load images for given destination
-async function openSelectBrowser(destination) {
+function _openModal(destination, mode) {
   const analysisId = getSelectedAnalysis("select");
   if (!analysisId) {
-    const btn = document.getElementById(`browse-${destination}-btn`);
+    const btnId = mode === "review" ? `review-${destination}-btn` : `browse-${destination}-btn`;
+    const btn = document.getElementById(btnId);
     if (btn) { const t = btn.textContent; btn.textContent = "Select an analysis first"; setTimeout(() => { btn.textContent = t; }, 1800); }
-    return;
+    return null;
   }
   selectState.destination  = destination;
   selectState.analysisId   = analysisId;
+  selectState.mode         = mode;
   selectState.strainFilter = "all";
-  selectState.viewMode     = "grid";
-
+  selectState.singleIdx    = 0;
   document.getElementById("select-modal")?.classList.remove("hidden");
   document.body.style.overflow = "hidden";
+  return analysisId;
+}
+
+async function openSelectBrowser(destination) {
+  if (!_openModal(destination, "select")) return;
+  _updateModalChrome();
   setSelectViewMode("grid");
   await loadSelectImages();
 }
 
-function closeSelectBrowser() {
+async function openReviewBrowser(destination) {
+  if (!_openModal(destination, "review")) return;
+  _updateModalChrome();
+  setSelectViewMode("grid");
+  await loadSetImages();
+}
+
+function _updateModalChrome() {
+  const { mode, destination } = selectState;
+  const titleEl = document.getElementById("select-modal-title");
+  if (titleEl) {
+    const dest = destination === "training" ? "Training Set" : "Analysis Set";
+    titleEl.textContent = mode === "review" ? `Reviewing ${dest}` : `Selecting for ${dest}`;
+    titleEl.className   = "select-modal-title" + (mode === "review" ? " select-modal-title--review" : "");
+  }
+  const allBtn = document.getElementById("select-all-btn");
+  const deselBtn = document.getElementById("select-deselect-all-btn");
+  if (mode === "review") {
+    if (allBtn)   allBtn.textContent   = "Mark All for Removal";
+    if (deselBtn) deselBtn.textContent = "Unmark All";
+  } else {
+    if (allBtn)   allBtn.textContent   = "Select All";
+    if (deselBtn) deselBtn.textContent = "Deselect All";
+  }
+}
+
+async function closeSelectBrowser() {
+  // In review mode, apply any removals before closing
+  if (selectState.mode === "review") {
+    const toRemove = selectState.images.filter(i => i.marked).map(i => i.abs_path);
+    if (toRemove.length > 0) {
+      try {
+        const result = await postJSON("/api/set/remove", {
+          analysis_id: selectState.analysisId,
+          destination: selectState.destination,
+          paths: toRemove,
+        });
+        if (result.errors?.length) console.warn("Remove errors:", result.errors);
+      } catch (e) { console.error("Failed to remove images:", e); }
+    }
+  }
   document.getElementById("select-modal")?.classList.add("hidden");
   document.body.style.overflow = "";
   if (selectState._observer) { selectState._observer.disconnect(); selectState._observer = null; }
@@ -1065,6 +1112,24 @@ async function loadSelectImages() {
       `/api/select/images?analysis_id=${encodedPath(analysisId)}&destination=${destination}`
     );
     selectState.images = data.images || [];
+    renderStrainTabs();
+    renderSelectGrid();
+    updateSelectStats();
+  } catch (e) {
+    if (grid) grid.innerHTML = `<div class="empty-state" style="padding:32px">Error: ${e.message}</div>`;
+  }
+}
+
+async function loadSetImages() {
+  const { analysisId, destination } = selectState;
+  const grid = document.getElementById("select-grid");
+  if (grid) grid.innerHTML = '<div class="empty-state" style="padding:32px">Loading images…</div>';
+  try {
+    const data = await apiJSON(
+      `/api/set/images?analysis_id=${encodedPath(analysisId)}&destination=${destination}`
+    );
+    // In review mode: all images start unmarked (not flagged for removal)
+    selectState.images = (data.images || []).map(img => ({ ...img, marked: false, viewed: false }));
     renderStrainTabs();
     renderSelectGrid();
     updateSelectStats();
@@ -1107,19 +1172,33 @@ function renderSelectGrid() {
   if (selectState._observer) { selectState._observer.disconnect(); selectState._observer = null; }
 
   const visible = visibleSelectImages();
+  const isReview = selectState.mode === "review";
+
   if (!visible.length) {
-    grid.innerHTML = '<div class="empty-state" style="padding:32px">No images found in data/input/ — import strain images in Setup first</div>';
+    const msg = isReview
+      ? "No images in this set yet — use Browse &amp; Select to add images, then Copy Selections."
+      : "No images found in data/input/ — import strain images in Setup first";
+    grid.innerHTML = `<div class="empty-state" style="padding:32px">${msg}</div>`;
     return;
   }
 
   grid.innerHTML = visible.map(img => {
-    const idx     = selectState.images.indexOf(img);  // global index for toggle
-    const selCls  = img.selected ? " cell-card--selected" : "";
-    const viewCls = img.viewed   ? " img-viewed"          : "";
-    return `<div class="cell-card img-select-card${selCls}${viewCls}" data-idx="${idx}" tabindex="0">
+    const idx = selectState.images.indexOf(img);
+    let activeCls = "", badge = "";
+    if (isReview) {
+      activeCls = img.marked ? " cell-card--remove" : " cell-card--in-set";
+      badge = img.marked
+        ? `<div class="select-check-badge select-remove-badge">✕</div>`
+        : `<div class="select-check-badge select-inset-badge">✓</div>`;
+    } else {
+      activeCls = img.selected ? " cell-card--selected" : "";
+      badge = `<div class="select-check-badge">✓</div>`;
+    }
+    const viewCls = img.viewed ? " img-viewed" : "";
+    return `<div class="cell-card img-select-card${activeCls}${viewCls}" data-idx="${idx}" tabindex="0">
       <div class="cell-card-img-wrap">
         <img class="cell-canvas" src="/api/curation/file?path=${encodedPath(img.abs_path)}&thumb=1" alt="">
-        <div class="select-check-badge">✓</div>
+        ${badge}
       </div>
       <div class="cell-card-info">
         <span class="chip chip--dim" style="font-size:7px;padding:1px 4px;margin-bottom:1px">${img.strain}</span>
@@ -1130,11 +1209,10 @@ function renderSelectGrid() {
 
   grid.querySelectorAll(".img-select-card").forEach(card => {
     card.addEventListener("click", () => toggleSelectImage(+card.dataset.idx));
-    card.addEventListener("focus", () => {});
   });
 
   // Mark images as viewed when they scroll into the browser viewport
-  const root = document.getElementById("select-modal-grid-view");
+  const scrollRoot = document.getElementById("select-modal-grid-view");
   selectState._observer = new IntersectionObserver(entries => {
     let changed = false;
     entries.forEach(entry => {
@@ -1143,34 +1221,53 @@ function renderSelectGrid() {
       const img = selectState.images[idx];
       if (img && !img.viewed) { img.viewed = true; entry.target.classList.add("img-viewed"); changed = true; }
     });
-    if (changed) { updateSelectStats(); scheduleSelectSave(); }
-  }, { root, threshold: 0.4 });
+    if (changed) { updateSelectStats(); if (!isReview) scheduleSelectSave(); }
+  }, { root: scrollRoot, threshold: 0.4 });
   grid.querySelectorAll(".img-select-card").forEach(c => selectState._observer.observe(c));
 }
 
 function toggleSelectImage(idx) {
   const img = selectState.images[idx];
   if (!img) return;
-  img.selected = !img.selected;
-  img.viewed   = true;
   const card = document.querySelector(`#select-grid [data-idx="${idx}"]`);
-  if (card) { card.classList.toggle("cell-card--selected", img.selected); card.classList.add("img-viewed"); }
+  if (selectState.mode === "review") {
+    img.marked = !img.marked;
+    img.viewed = true;
+    if (card) {
+      card.classList.toggle("cell-card--remove", img.marked);
+      card.classList.toggle("cell-card--in-set", !img.marked);
+      card.classList.add("img-viewed");
+      card.querySelector(".select-check-badge").textContent = img.marked ? "✕" : "✓";
+      card.querySelector(".select-check-badge").className =
+        "select-check-badge " + (img.marked ? "select-remove-badge" : "select-inset-badge");
+    }
+  } else {
+    img.selected = !img.selected;
+    img.viewed   = true;
+    if (card) { card.classList.toggle("cell-card--selected", img.selected); card.classList.add("img-viewed"); }
+    scheduleSelectSave();
+  }
   updateSelectStats();
-  scheduleSelectSave();
 }
 
 function updateSelectStats() {
-  const { images, destination } = selectState;
-  const sel    = images.filter(i => i.selected).length;
-  const viewed = images.filter(i => i.viewed).length;
+  const { images, destination, mode } = selectState;
   const total  = images.length;
   const statsEl = document.getElementById("select-stats");
-  if (statsEl) statsEl.textContent = total > 0 ? `${sel} selected · ${viewed} viewed · ${total} total` : "";
-  // Show selection count on the destination card
-  const infoEl = document.getElementById(`${destination}-sel-info`);
-  if (infoEl) {
-    if (sel > 0) { infoEl.textContent = `${sel} marked — click Copy Selections when ready`; infoEl.classList.remove("hidden"); }
-    else           infoEl.classList.add("hidden");
+  if (mode === "review") {
+    const marked = images.filter(i => i.marked).length;
+    if (statsEl) statsEl.textContent = total > 0
+      ? `${total - marked} in set · ${marked} marked for removal`
+      : "Empty set";
+  } else {
+    const sel    = images.filter(i => i.selected).length;
+    const viewed = images.filter(i => i.viewed).length;
+    if (statsEl) statsEl.textContent = total > 0 ? `${sel} selected · ${viewed} viewed · ${total} total` : "";
+    const infoEl = document.getElementById(`${destination}-sel-info`);
+    if (infoEl) {
+      if (sel > 0) { infoEl.textContent = `${sel} marked — click Copy Selections when ready`; infoEl.classList.remove("hidden"); }
+      else           infoEl.classList.add("hidden");
+    }
   }
 }
 
@@ -1217,31 +1314,40 @@ function renderSingleView() {
   const idx = Math.max(0, Math.min(selectState.singleIdx, visible.length - 1));
   selectState.singleIdx = idx;
 
-  const img    = document.getElementById("select-single-img");
+  const imgEl  = document.getElementById("select-single-img");
   const pos    = document.getElementById("select-single-pos");
   const strain = document.getElementById("select-single-strain");
   const name   = document.getElementById("select-single-name");
   const toggle = document.getElementById("select-single-toggle");
+  const isReview = selectState.mode === "review";
 
   if (!visible.length) {
-    if (img) img.src = "";
+    if (imgEl) imgEl.src = "";
     if (pos) pos.textContent = "No images";
     return;
   }
 
-  const item = visible[idx];
+  const item      = visible[idx];
   const globalIdx = selectState.images.indexOf(item);
 
-  if (img) {
-    img.src = `/api/curation/file?path=${encodedPath(item.abs_path)}`;
-    img.alt = item.filename;
+  if (imgEl) {
+    imgEl.src = `/api/curation/file?path=${encodedPath(item.abs_path)}`;
+    imgEl.alt = item.filename;
   }
   if (pos)    pos.textContent = `${idx + 1} / ${visible.length}`;
-  if (strain) { strain.textContent = item.strain; }
+  if (strain) strain.textContent = item.strain;
   if (name)   name.textContent = item.filename;
+
   if (toggle) {
-    toggle.textContent = item.selected ? "✓ Selected" : "Mark Selected";
-    toggle.classList.toggle("select-single-selected", item.selected);
+    if (isReview) {
+      toggle.textContent = item.marked ? "✕ Remove" : "Keep in Set";
+      toggle.classList.toggle("select-single-remove", item.marked);
+      toggle.classList.remove("select-single-selected");
+    } else {
+      toggle.textContent = item.selected ? "✓ Selected" : "Mark Selected";
+      toggle.classList.toggle("select-single-selected", item.selected);
+      toggle.classList.remove("select-single-remove");
+    }
     toggle.onclick = () => { toggleSelectImage(globalIdx); renderSingleView(); };
   }
 
@@ -1250,7 +1356,7 @@ function renderSingleView() {
     item.viewed = true;
     const card = document.querySelector(`#select-grid [data-idx="${globalIdx}"]`);
     if (card) card.classList.add("img-viewed");
-    scheduleSelectSave();
+    if (!isReview) scheduleSelectSave();
   }
 }
 
@@ -1268,6 +1374,8 @@ function initSelectTab() {
 
   document.getElementById("browse-curated-btn")?.addEventListener("click",  () => openSelectBrowser("curated"));
   document.getElementById("browse-training-btn")?.addEventListener("click", () => openSelectBrowser("training"));
+  document.getElementById("review-curated-btn")?.addEventListener("click",  () => openReviewBrowser("curated"));
+  document.getElementById("review-training-btn")?.addEventListener("click", () => openReviewBrowser("training"));
   document.getElementById("copy-to-curated-btn")?.addEventListener("click",  () => doCopyToSet("curated"));
   document.getElementById("copy-to-training-btn")?.addEventListener("click", () => doCopyToSet("training"));
   document.getElementById("use-all-images-btn")?.addEventListener("click", async () => {
@@ -1291,42 +1399,70 @@ function initSelectTab() {
   document.getElementById("select-view-grid-btn")?.addEventListener("click",   () => setSelectViewMode("grid"));
   document.getElementById("select-view-single-btn")?.addEventListener("click", () => setSelectViewMode("single"));
 
-  document.getElementById("select-single-prev")?.addEventListener("click", () => navSingle(-1));
-  document.getElementById("select-single-next")?.addEventListener("click", () => navSingle(+1));
+  document.getElementById("select-single-prev")?.addEventListener("click",   () => navSingle(-1));
+  document.getElementById("select-single-next")?.addEventListener("click",   () => navSingle(+1));
+  document.getElementById("select-single-prev10")?.addEventListener("click", () => navSingle(-10));
+  document.getElementById("select-single-next10")?.addEventListener("click", () => navSingle(+10));
 
   document.getElementById("select-all-btn")?.addEventListener("click", () => {
-    visibleSelectImages().forEach(i => { i.selected = true; i.viewed = true; });
+    const isReview = selectState.mode === "review";
+    visibleSelectImages().forEach(i => {
+      if (isReview) { i.marked = true; } else { i.selected = true; i.viewed = true; }
+    });
     document.querySelectorAll("#select-grid .img-select-card").forEach(c => {
-      c.classList.add("cell-card--selected", "img-viewed");
+      if (isReview) {
+        c.classList.add("cell-card--remove", "img-viewed");
+        c.classList.remove("cell-card--in-set");
+        const badge = c.querySelector(".select-check-badge");
+        if (badge) { badge.textContent = "✕"; badge.className = "select-check-badge select-remove-badge"; }
+      } else {
+        c.classList.add("cell-card--selected", "img-viewed");
+      }
     });
     if (selectState.viewMode === "single") renderSingleView();
-    updateSelectStats(); scheduleSelectSave();
+    updateSelectStats();
+    if (!isReview) scheduleSelectSave();
   });
+
   document.getElementById("select-deselect-all-btn")?.addEventListener("click", () => {
-    visibleSelectImages().forEach(i => { i.selected = false; });
-    document.querySelectorAll("#select-grid .img-select-card").forEach(c => c.classList.remove("cell-card--selected"));
+    const isReview = selectState.mode === "review";
+    visibleSelectImages().forEach(i => {
+      if (isReview) { i.marked = false; } else { i.selected = false; }
+    });
+    document.querySelectorAll("#select-grid .img-select-card").forEach(c => {
+      if (isReview) {
+        c.classList.remove("cell-card--remove");
+        c.classList.add("cell-card--in-set");
+        const badge = c.querySelector(".select-check-badge");
+        if (badge) { badge.textContent = "✓"; badge.className = "select-check-badge select-inset-badge"; }
+      } else {
+        c.classList.remove("cell-card--selected");
+      }
+    });
     if (selectState.viewMode === "single") renderSingleView();
-    updateSelectStats(); scheduleSelectSave();
+    updateSelectStats();
+    if (!isReview) scheduleSelectSave();
   });
 
   // Keyboard: works on modal in both grid and single view
   document.getElementById("select-modal")?.addEventListener("keydown", e => {
     if (document.getElementById("select-modal")?.classList.contains("hidden")) return;
-    const mode = selectState.viewMode;
+    const viewMode = selectState.viewMode;
 
     if (e.code === "Escape") { closeSelectBrowser(); return; }
 
-    if (mode === "single") {
+    if (viewMode === "single") {
       const visible = visibleSelectImages();
       if (!visible.length) return;
-      if      (e.code === "ArrowRight" || e.code === "ArrowDown")  { e.preventDefault(); navSingle(+1); }
-      else if (e.code === "ArrowLeft"  || e.code === "ArrowUp")    { e.preventDefault(); navSingle(-1); }
+      const shift = e.shiftKey;
+      if      (e.code === "ArrowRight" || e.code === "ArrowDown")  { e.preventDefault(); navSingle(shift ? +10 : +1); }
+      else if (e.code === "ArrowLeft"  || e.code === "ArrowUp")    { e.preventDefault(); navSingle(shift ? -10 : -1); }
       else if (e.code === "Space") {
         e.preventDefault();
         const item = visible[selectState.singleIdx];
         if (item) { toggleSelectImage(selectState.images.indexOf(item)); renderSingleView(); }
       }
-      else if (e.code === "KeyJ") {
+      else if (e.code === "KeyJ" && selectState.mode === "select") {
         e.preventDefault();
         const first = visible.findIndex(i => !i.viewed);
         selectState.singleIdx = first === -1 ? 0 : first;
@@ -1343,7 +1479,7 @@ function initSelectTab() {
     if      (e.code === "ArrowRight") { visIdx = Math.min(visIdx + 1, cards.length - 1); e.preventDefault(); }
     else if (e.code === "ArrowLeft")  { visIdx = Math.max(visIdx - 1, 0);                e.preventDefault(); }
     else if (e.code === "Space" && visIdx >= 0) { e.preventDefault(); toggleSelectImage(+cards[visIdx].dataset.idx); return; }
-    else if (e.code === "KeyJ") {
+    else if (e.code === "KeyJ" && selectState.mode === "select") {
       const visible = visibleSelectImages();
       const first = visible.findIndex(i => !i.viewed);
       visIdx = first === -1 ? 0 : first;
