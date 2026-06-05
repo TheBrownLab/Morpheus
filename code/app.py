@@ -1576,8 +1576,13 @@ def api_curation_file(path: str = Query(...), thumb: bool = Query(False)):
         # Browsers can't render TIFF — convert to normalised 8-bit PNG in memory
         import io, tifffile, numpy as np
         img = tifffile.imread(str(p))
-        if img.ndim == 3:
-            img = img[0] if img.shape[0] <= 4 else img[..., 0]
+        # Squeeze any number of leading/channel dims down to a single 2D (Y,X) frame.
+        # Handles: (Y,X), (T,Y,X), (C,Y,X), (T,C,Y,X), (Y,X,C), etc.
+        while img.ndim > 2:
+            if img.shape[-1] <= 4:   # last axis is small → likely RGB/RGBA channels
+                img = img[..., 0]
+            else:
+                img = img[0]         # take first frame/slice along leading axis
         lo, hi = np.percentile(img, [1, 99])
         img8 = ((np.clip(img.astype(np.float32), lo, hi) - lo) /
                 (hi - lo + 1e-6) * 255).astype(np.uint8)

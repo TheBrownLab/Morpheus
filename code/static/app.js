@@ -984,10 +984,6 @@ function initSetupTab() {
   });
 }
 
-// ── Select Images tab ─────────────────────────────────────────────────────────
-
-// ── Select Images tab — browser-based image selection (replaces napari) ───────
-
 // ── Select Images tab — browser-based image selection (replaces napari) ───────
 
 const selectState = {
@@ -995,6 +991,8 @@ const selectState = {
   destination:  "curated",
   images:       [],    // [{path, abs_path, strain, filename, selected, viewed}]
   strainFilter: "all",
+  viewMode:     "grid",   // "grid" | "single"
+  singleIdx:    0,        // index within visibleSelectImages()
   _saveTimer:   null,
   _observer:    null,
 };
@@ -1024,7 +1022,7 @@ function renderSetStatus(elId, counts) {
   ).join("");
 }
 
-// Open inline browser, load images for given destination
+// Open full-screen modal, load images for given destination
 async function openSelectBrowser(destination) {
   const analysisId = getSelectedAnalysis("select");
   if (!analysisId) {
@@ -1035,20 +1033,27 @@ async function openSelectBrowser(destination) {
   selectState.destination  = destination;
   selectState.analysisId   = analysisId;
   selectState.strainFilter = "all";
+  selectState.viewMode     = "grid";
 
-  const browser = document.getElementById("select-browser");
-  const title   = document.getElementById("select-browser-title");
-  if (title) title.textContent = destination === "curated" ? "Analysis Set — Curated" : "Training Set";
-  if (browser) { browser.classList.remove("hidden"); browser.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
-
+  document.getElementById("select-modal")?.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  setSelectViewMode("grid");
   await loadSelectImages();
 }
 
 function closeSelectBrowser() {
-  const browser = document.getElementById("select-browser");
-  if (browser) browser.classList.add("hidden");
+  document.getElementById("select-modal")?.classList.add("hidden");
+  document.body.style.overflow = "";
   if (selectState._observer) { selectState._observer.disconnect(); selectState._observer = null; }
   refreshSetStatus();
+}
+
+function setSelectViewMode(mode) {
+  selectState.viewMode = mode;
+  document.getElementById("select-modal-grid-view")?.classList.toggle("hidden", mode !== "grid");
+  document.getElementById("select-modal-single-view")?.classList.toggle("hidden", mode !== "single");
+  document.querySelectorAll(".select-view-btn").forEach(b => b.classList.toggle("btn-active", b.dataset.view === mode));
+  if (mode === "single") renderSingleView();
 }
 
 async function loadSelectImages() {
@@ -1068,9 +1073,9 @@ async function loadSelectImages() {
   }
 }
 
-// Strain filter chips above the grid
+// Strain filter chips in the modal top bar
 function renderStrainTabs() {
-  const wrap = document.getElementById("select-strain-tabs");
+  const wrap = document.getElementById("select-modal-strains");
   if (!wrap) return;
   const strains = [...new Set(selectState.images.map(i => i.strain))].sort();
   const mkBtn = (label, strain, count) => {
@@ -1082,8 +1087,10 @@ function renderStrainTabs() {
   wrap.querySelectorAll(".strain-tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       selectState.strainFilter = btn.dataset.strain;
+      selectState.singleIdx = 0;
       renderStrainTabs();
       renderSelectGrid();
+      if (selectState.viewMode === "single") renderSingleView();
     });
   });
 }
@@ -1127,7 +1134,7 @@ function renderSelectGrid() {
   });
 
   // Mark images as viewed when they scroll into the browser viewport
-  const root = document.getElementById("select-grid-wrap");
+  const root = document.getElementById("select-modal-grid-view");
   selectState._observer = new IntersectionObserver(entries => {
     let changed = false;
     entries.forEach(entry => {
@@ -1205,34 +1212,64 @@ async function doCopyToSet(destination) {
   }
 }
 
+function renderSingleView() {
+  const visible = visibleSelectImages();
+  const idx = Math.max(0, Math.min(selectState.singleIdx, visible.length - 1));
+  selectState.singleIdx = idx;
+
+  const img    = document.getElementById("select-single-img");
+  const pos    = document.getElementById("select-single-pos");
+  const strain = document.getElementById("select-single-strain");
+  const name   = document.getElementById("select-single-name");
+  const toggle = document.getElementById("select-single-toggle");
+
+  if (!visible.length) {
+    if (img) img.src = "";
+    if (pos) pos.textContent = "No images";
+    return;
+  }
+
+  const item = visible[idx];
+  const globalIdx = selectState.images.indexOf(item);
+
+  if (img) {
+    img.src = `/api/curation/file?path=${encodedPath(item.abs_path)}`;
+    img.alt = item.filename;
+  }
+  if (pos)    pos.textContent = `${idx + 1} / ${visible.length}`;
+  if (strain) { strain.textContent = item.strain; }
+  if (name)   name.textContent = item.filename;
+  if (toggle) {
+    toggle.textContent = item.selected ? "✓ Selected" : "Mark Selected";
+    toggle.classList.toggle("select-single-selected", item.selected);
+    toggle.onclick = () => { toggleSelectImage(globalIdx); renderSingleView(); };
+  }
+
+  // Mark as viewed
+  if (!item.viewed) {
+    item.viewed = true;
+    const card = document.querySelector(`#select-grid [data-idx="${globalIdx}"]`);
+    if (card) card.classList.add("img-viewed");
+    scheduleSelectSave();
+  }
+}
+
+function navSingle(delta) {
+  const visible = visibleSelectImages();
+  if (!visible.length) return;
+  selectState.singleIdx = Math.max(0, Math.min(selectState.singleIdx + delta, visible.length - 1));
+  renderSingleView();
+}
+
 function initSelectTab() {
   document.getElementById("analysis-select-select")?.addEventListener("change", async () => {
     await refreshSetStatus();
-    // Reload browser if it's open
-    if (!document.getElementById("select-browser")?.classList.contains("hidden"))
-      await loadSelectImages();
   });
 
   document.getElementById("browse-curated-btn")?.addEventListener("click",  () => openSelectBrowser("curated"));
   document.getElementById("browse-training-btn")?.addEventListener("click", () => openSelectBrowser("training"));
   document.getElementById("copy-to-curated-btn")?.addEventListener("click",  () => doCopyToSet("curated"));
   document.getElementById("copy-to-training-btn")?.addEventListener("click", () => doCopyToSet("training"));
-  document.getElementById("select-browser-close")?.addEventListener("click", closeSelectBrowser);
-  document.getElementById("refresh-set-status-btn")?.addEventListener("click", refreshSetStatus);
-
-  document.getElementById("select-deselect-all-btn")?.addEventListener("click", () => {
-    visibleSelectImages().forEach(i => { i.selected = false; });
-    document.querySelectorAll("#select-grid .img-select-card").forEach(c => c.classList.remove("cell-card--selected"));
-    updateSelectStats(); scheduleSelectSave();
-  });
-  document.getElementById("select-all-btn")?.addEventListener("click", () => {
-    visibleSelectImages().forEach(i => { i.selected = true; i.viewed = true; });
-    document.querySelectorAll("#select-grid .img-select-card").forEach(c => {
-      c.classList.add("cell-card--selected", "img-viewed");
-    });
-    updateSelectStats(); scheduleSelectSave();
-  });
-
   document.getElementById("use-all-images-btn")?.addEventListener("click", async () => {
     const btn = document.getElementById("use-all-images-btn");
     const infoEl = document.getElementById("curated-sel-info");
@@ -1248,10 +1285,57 @@ function initSelectTab() {
     } finally { btn.disabled = false; btn.textContent = "Use All"; }
   });
 
-  // Keyboard navigation within the scrollable browser
-  document.getElementById("select-grid-wrap")?.addEventListener("keydown", e => {
-    const visible = visibleSelectImages();
-    if (!visible.length) return;
+  // Modal buttons
+  document.getElementById("select-modal-close")?.addEventListener("click", closeSelectBrowser);
+
+  document.getElementById("select-view-grid-btn")?.addEventListener("click",   () => setSelectViewMode("grid"));
+  document.getElementById("select-view-single-btn")?.addEventListener("click", () => setSelectViewMode("single"));
+
+  document.getElementById("select-single-prev")?.addEventListener("click", () => navSingle(-1));
+  document.getElementById("select-single-next")?.addEventListener("click", () => navSingle(+1));
+
+  document.getElementById("select-all-btn")?.addEventListener("click", () => {
+    visibleSelectImages().forEach(i => { i.selected = true; i.viewed = true; });
+    document.querySelectorAll("#select-grid .img-select-card").forEach(c => {
+      c.classList.add("cell-card--selected", "img-viewed");
+    });
+    if (selectState.viewMode === "single") renderSingleView();
+    updateSelectStats(); scheduleSelectSave();
+  });
+  document.getElementById("select-deselect-all-btn")?.addEventListener("click", () => {
+    visibleSelectImages().forEach(i => { i.selected = false; });
+    document.querySelectorAll("#select-grid .img-select-card").forEach(c => c.classList.remove("cell-card--selected"));
+    if (selectState.viewMode === "single") renderSingleView();
+    updateSelectStats(); scheduleSelectSave();
+  });
+
+  // Keyboard: works on modal in both grid and single view
+  document.getElementById("select-modal")?.addEventListener("keydown", e => {
+    if (document.getElementById("select-modal")?.classList.contains("hidden")) return;
+    const mode = selectState.viewMode;
+
+    if (e.code === "Escape") { closeSelectBrowser(); return; }
+
+    if (mode === "single") {
+      const visible = visibleSelectImages();
+      if (!visible.length) return;
+      if      (e.code === "ArrowRight" || e.code === "ArrowDown")  { e.preventDefault(); navSingle(+1); }
+      else if (e.code === "ArrowLeft"  || e.code === "ArrowUp")    { e.preventDefault(); navSingle(-1); }
+      else if (e.code === "Space") {
+        e.preventDefault();
+        const item = visible[selectState.singleIdx];
+        if (item) { toggleSelectImage(selectState.images.indexOf(item)); renderSingleView(); }
+      }
+      else if (e.code === "KeyJ") {
+        e.preventDefault();
+        const first = visible.findIndex(i => !i.viewed);
+        selectState.singleIdx = first === -1 ? 0 : first;
+        renderSingleView();
+      }
+      return;
+    }
+
+    // Grid view keyboard nav
     const cards  = [...document.querySelectorAll("#select-grid .img-select-card")];
     const active = document.activeElement?.closest(".img-select-card");
     let visIdx   = active ? cards.indexOf(active) : -1;
@@ -1260,6 +1344,7 @@ function initSelectTab() {
     else if (e.code === "ArrowLeft")  { visIdx = Math.max(visIdx - 1, 0);                e.preventDefault(); }
     else if (e.code === "Space" && visIdx >= 0) { e.preventDefault(); toggleSelectImage(+cards[visIdx].dataset.idx); return; }
     else if (e.code === "KeyJ") {
+      const visible = visibleSelectImages();
       const first = visible.findIndex(i => !i.viewed);
       visIdx = first === -1 ? 0 : first;
       e.preventDefault();

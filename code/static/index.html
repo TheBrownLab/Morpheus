@@ -320,37 +320,15 @@
         <div id="training-sel-info" class="inline-status hidden"></div>
       </div>
 
-      <!-- ── Inline image browser — hidden until Browse & Select is clicked ── -->
-      <div id="select-browser" class="stone-card select-browser-card hidden">
-        <div class="select-browser-header">
-          <span id="select-browser-title" class="select-browser-title">Image Browser</span>
-          <div class="toolbar-spacer"></div>
-          <span id="select-stats" class="text-dim" style="font-size:11px;white-space:nowrap"></span>
-          <button id="select-all-btn" class="btn-secondary btn-sm">Select All</button>
-          <button id="select-deselect-all-btn" class="btn-secondary btn-sm">Deselect All</button>
-          <button id="select-browser-close" class="btn-secondary btn-sm">✕ Close</button>
-        </div>
-        <div class="select-browser-strains" id="select-strain-tabs"></div>
-        <div class="select-browser-grid" id="select-grid-wrap">
-          <div class="cell-grid" id="select-grid">
-            <div class="empty-state" style="padding:32px">Loading…</div>
-          </div>
-        </div>
-        <div class="select-browser-footer">
-          <kbd>←</kbd> <kbd>→</kbd> navigate &nbsp;·&nbsp; <kbd>Space</kbd> toggle selection &nbsp;·&nbsp; <kbd>J</kbd> jump to first unseen
-        </div>
-      </div>
-
       <div class="stone-card stone-card--dim">
         <h3>How it works</h3>
         <ol class="how-list">
           <li>Select an analysis above</li>
-          <li>Click <strong>Browse &amp; Select</strong> — an image browser opens below showing all images from <code>data/input/</code></li>
-          <li>Click thumbnails to mark/unmark, or use <kbd>←</kbd> <kbd>→</kbd> to navigate and <kbd>Space</kbd> to toggle. <kbd>J</kbd> jumps to first unseen image</li>
-          <li>Filter by strain using the tabs at the top of the browser. Use <strong>Select All</strong> to mark the entire visible strain</li>
-          <li>Click <strong>Copy Selections</strong> to copy the marked images</li>
-          <li><strong>Analysis Set</strong> → <code>data/curated/&lt;analysis&gt;/&lt;strain&gt;/</code> — used for measurement</li>
-          <li><strong>Training Set</strong> → <code>data/training/&lt;strain&gt;/</code> — draw masks here, then train a model</li>
+          <li>Click <strong>Browse &amp; Select</strong> — a full-screen image browser opens</li>
+          <li>Switch between <strong>Grid</strong> (scan many at once) and <strong>Single</strong> (inspect one at a time)</li>
+          <li>Click thumbnails or press <kbd>Space</kbd> to mark images. <kbd>←</kbd> <kbd>→</kbd> navigate, <kbd>J</kbd> jumps to first unseen</li>
+          <li>Filter by strain using the tabs at the top</li>
+          <li>Click <strong>Done</strong> to close, then <strong>Copy Selections</strong> to copy marked images</li>
         </ol>
       </div>
 
@@ -685,6 +663,49 @@
     </section>
 
   </main>
+
+  <!-- ── Full-screen image selection browser (shared by curated & training) ── -->
+  <div id="select-modal" class="select-modal hidden" role="dialog" aria-modal="true">
+
+    <!-- Top bar: strain tabs · stats · view toggle · actions -->
+    <div class="select-modal-bar">
+      <div class="select-modal-strains" id="select-modal-strains"></div>
+      <div style="flex:1;min-width:8px"></div>
+      <span id="select-stats" class="select-modal-stats"></span>
+      <span class="toolbar-sep"></span>
+      <button id="select-view-grid-btn"   class="btn-secondary btn-sm select-view-btn" data-view="grid"  >⊞ Grid</button>
+      <button id="select-view-single-btn" class="btn-secondary btn-sm select-view-btn" data-view="single">⊡ Single</button>
+      <span class="toolbar-sep"></span>
+      <button id="select-all-btn"          class="btn-secondary btn-sm">Select All</button>
+      <button id="select-deselect-all-btn" class="btn-secondary btn-sm">Deselect All</button>
+      <span class="toolbar-sep"></span>
+      <button id="select-modal-close" class="btn-primary btn-sm">✓ Done</button>
+    </div>
+
+    <!-- Grid view: scrollable large thumbnails -->
+    <div id="select-modal-grid-view" class="select-modal-content">
+      <div class="select-modal-grid" id="select-grid"></div>
+    </div>
+
+    <!-- Single image view -->
+    <div id="select-modal-single-view" class="select-modal-content select-modal-single hidden">
+      <button class="select-single-nav" id="select-single-prev" title="Previous (←)">‹</button>
+      <div class="select-single-stage">
+        <div class="select-single-img-wrap">
+          <img id="select-single-img" src="" alt="">
+        </div>
+        <div class="select-single-footer">
+          <span id="select-single-pos"    class="text-dim" style="font-size:11px"></span>
+          <span id="select-single-strain" class="chip chip--dim"></span>
+          <span id="select-single-name"   style="font-family:var(--font-mono);font-size:12px;color:var(--text-mid)"></span>
+          <div style="flex:1"></div>
+          <button id="select-single-toggle" class="btn-lg select-single-toggle-btn">Mark Selected</button>
+        </div>
+      </div>
+      <button class="select-single-nav" id="select-single-next" title="Next (→)">›</button>
+    </div>
+
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="/app.js" type="module"></script>
